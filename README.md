@@ -1,39 +1,110 @@
-# 3.19 寸 272×928 AMOLED MIPI 模组（CO6300）资料与示例
+<p align="left"><img alt="OSPTEK" src="./images/logo.png" width="200" /></p>
 
-**English：** [`README_EN.md`](README_EN.md)
+<h1 align="center">OSPTEK 3.19″ AMOLED 262×928（CO6300 · MIPI）</h1>
+
+<p align="center"><b>条形 AMOLED 模组 · MIPI DSI · CO6300</b></p>
+
+<p align="center"><a href="./README_EN.md">English</a> | 简体中文</p>
+
+<p align="center">
+  <img alt="Size: 3.19 inch" src="https://img.shields.io/badge/Size-3.19%22-3498DB?style=flat-square" />
+  <img alt="Resolution: 262x928" src="https://img.shields.io/badge/Resolution-262%C3%97928-8E44AD?style=flat-square" />
+  <img alt="Interface: MIPI" src="https://img.shields.io/badge/Interface-MIPI-27AE60?style=flat-square" />
+  <img alt="Driver: CO6300" src="https://img.shields.io/badge/Driver-CO6300-E7352C?style=flat-square" />
+</p>
+
+<p align="center"><img alt="OSPTEK 3.19 寸 262×928 AMOLED MIPI 模组（CO6300）宣传图" src="./images/product.png" width="640" /></p>
+
+## 目录
+
+- [产品简介](#产品简介)
+- [规格参数](#规格参数)
+- [示例工程](#示例工程)
+- [仓库结构](#仓库结构)
+- [相关资料](#相关资料)
+- [购买链接](#购买链接)
+- [技术支持](#技术支持)
 
 ---
 
-> 本仓库提供该模组的 **示例工程**，以及数据手册、规格与接口说明等资料，便于选型参考与集成开发。
+## 产品简介
 
-## 产品概要
+OSPTEK **3.19 寸 262×928 AMOLED** 是一款 **MIPI DSI** 接口彩色显示模组，显示驱动为 **CO6300**，触摸驱动为 **CST3530**。细长分辨率适合条形 HMI、侧边状态条与竖向信息面板等场景。
 
-| 项目 | 说明 |
-|:--|:--|
-| 模组规格 | 3.19 英寸 **AMOLED**，分辨率 **272×928** |
-| 接口 | **MIPI** |
-| 驱动芯片 | **CO6300** |
-| 规格标识 | 产品资料中常用 **`3.19-amoled-272x928-mipi-co6300`** 表示本规格 |
+规格标识（仓库名）：`3.19-amoled-262x928-mipi-co6300`
 
----
+当前模组版本：**AM319M262928ZS**。电气与外形细节以 [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf) 为准。
+
+## 规格参数
+
+| 项目 | 规格 |
+| ---- | ---- |
+| 尺寸 | 3.19 英寸 |
+| 类型 | AMOLED（彩色） |
+| 分辨率 | 262×928 |
+| 接口 | MIPI DSI |
+| 驱动 IC | CO6300 |
+| 触摸驱动 | CST3530 |
+
+> 完整外形尺寸、FPC 定义、供电与时序以产品规格书 / 驱动手册为准。
+
+## 示例工程
+
+| 说明 | 路径 |
+| ---- | ---- |
+| ESP32-P4 · CO6300 MIPI + CST3530 + LVGL | [`examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/`](./examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/) |
 
 ## 仓库结构
 
-### 顶层目录
+```text
+3.19-amoled-262x928-mipi-co6300/
+├── README.md
+├── README_EN.md
+├── MODULE_VERSION.md
+├── LICENSE
+├── images/          # README 用图
+├── docs/            # 规格书、驱动手册、初始化等
+└── examples/        # 示例工程
+```
 
-| 路径 | 说明 |
-|:--|:--|
-| `docs/` | 数据手册、规格说明、接口与初始化相关文档 |
-| `examples/` | **示例工程** |
+## 相关资料
 
-### `examples/` 分类
+### 本产品资料
 
-| 分类 | 说明（对应内部资料目录） |
-|:--|:--|
-| `examples/` 根目录 | **IDF代码**（esp-lvgl-port + LVGL9） |
+| 资料 | 链接 |
+| ---- | ---- |
+| 产品规格书（AM319M262928ZS） | [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf) |
+| 驱动 IC 数据手册（CO6300） | [`docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf`](./docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf) |
+| 触摸 IC 数据手册（CST3530） | [`docs/CST_3530_V1_0_adb72690f0.pdf`](./docs/CST_3530_V1_0_adb72690f0.pdf) |
+| 初始化序列（文本） | [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](./docs/AM319M262928ZS_CO6300_init_BOE3.19.txt) |
+| 转接板联调实拍 | [`docs/adapter-board-demo.jpg`](./docs/adapter-board-demo.jpg) |
 
-### 示例工程路径
+### 示例工程
 
-| 说明 | 路径 |
-|:--|:--|
-| esp-lvgl-port + LVGL9 | `examples/P4-IDF_CO6300-MIPI_ESP-LVGL-PORT_V9/` |
+- [ESP32-P4 CO6300 MIPI + CST3530 + LVGL](./examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/)
+
+## 购买链接
+
+<p align="center">
+  <a href="https://shop110742373.taobao.com/"><img alt="淘宝官方店铺" src="https://img.shields.io/badge/淘宝-官方店铺-FF6A00?style=for-the-badge" /></a>
+  &nbsp;&nbsp;
+  <a href="https://www.aliexpress.com/store/1105701619"><img alt="速卖通官方店铺" src="https://img.shields.io/badge/速卖通-官方店铺-FF6A00?style=for-the-badge" /></a>
+</p>
+
+**国内（淘宝）**
+
+- 店铺：[鱼鹰光电工厂店](https://shop110742373.taobao.com/)
+
+**海外（AliExpress）**
+
+- 店铺：[OSPTEK Official Store](https://www.aliexpress.com/store/1105701619)
+
+## 技术支持
+
+- 技术支持 / 产品咨询：<luyu@osptek.com>
+- QQ 技术交流群：**985881096**
+- 公司官网：<https://osptek.com/>
+
+---
+
+<p align="center"><sub>© 2026 OSPTEK 鱼鹰光电 · 本仓库资料采用 CC BY 4.0 许可</sub></p>

@@ -1,39 +1,110 @@
-# 3.19" 272×928 AMOLED MIPI module (CO6300) — documentation & samples
+<p align="left"><img alt="OSPTEK" src="./images/logo.png" width="200" /></p>
 
-**简体中文：** [`README.md`](README.md)
+<h1 align="center">OSPTEK 3.19″ AMOLED 262×928 (CO6300 · MIPI)</h1>
+
+<p align="center"><b>Bar-style AMOLED module · MIPI DSI · CO6300</b></p>
+
+<p align="center"><a href="./README.md">简体中文</a> | English</p>
+
+<p align="center">
+  <img alt="Size: 3.19 inch" src="https://img.shields.io/badge/Size-3.19%22-3498DB?style=flat-square" />
+  <img alt="Resolution: 262x928" src="https://img.shields.io/badge/Resolution-262%C3%97928-8E44AD?style=flat-square" />
+  <img alt="Interface: MIPI" src="https://img.shields.io/badge/Interface-MIPI-27AE60?style=flat-square" />
+  <img alt="Driver: CO6300" src="https://img.shields.io/badge/Driver-CO6300-E7352C?style=flat-square" />
+</p>
+
+<p align="center"><img alt="OSPTEK 3.19&quot; 262×928 AMOLED MIPI module (CO6300) product image" src="./images/product.png" width="640" /></p>
+
+## Contents
+
+- [Overview](#overview)
+- [Specifications](#specifications)
+- [Sample projects](#sample-projects)
+- [Repository layout](#repository-layout)
+- [Resources](#resources)
+- [Buy](#buy)
+- [Support](#support)
 
 ---
 
-> This repository provides **sample projects** for this module, together with datasheets, specifications, and interface / bring-up documentation for selection reference and integration.
+## Overview
 
-## Product overview
+OSPTEK **3.19″ 262×928 AMOLED** is a **MIPI DSI** color display module driven by **CO6300**, with touch controller **CST3530**. The tall aspect ratio suits bar-style HMI, side status strips, and vertical info panels.
 
-| Item | Description |
-|:--|:--|
-| Module | 3.19-inch **AMOLED** panel, **272×928** resolution |
-| Interface | **MIPI** |
-| Driver IC | **CO6300** |
-| Spec ID | **`3.19-amoled-272x928-mipi-co6300`** is the common product designation in documentation |
+Spec ID (repository name): `3.19-amoled-262x928-mipi-co6300`
 
----
+Current module version: **AM319M262928ZS**. Electrical and mechanical details follow [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf).
+
+## Specifications
+
+| Item | Spec |
+| ---- | ---- |
+| Size | 3.19 inch |
+| Type | AMOLED (color) |
+| Resolution | 262×928 |
+| Interface | MIPI DSI |
+| Driver IC | CO6300 |
+| Touch IC | CST3530 |
+
+> Full outline, FPC definition, power, and timing follow the product datasheet / driver IC datasheet.
+
+## Sample projects
+
+| Description | Path |
+| ---- | ---- |
+| ESP32-P4 · CO6300 MIPI + CST3530 + LVGL | [`examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/`](./examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/) |
 
 ## Repository layout
 
-### Top-level
+```text
+3.19-amoled-262x928-mipi-co6300/
+├── README.md
+├── README_EN.md
+├── MODULE_VERSION.md
+├── LICENSE
+├── images/          # README assets
+├── docs/            # datasheets, init files
+└── examples/        # sample projects
+```
 
-| Path | Contents |
-|:--|:--|
-| `docs/` | Datasheets, specifications, interface and initialization documentation |
-| `examples/` | **Sample projects** |
+## Resources
 
-### `examples/` layout
+### Product files
 
-| Location | Description (internal package folder) |
-|:--|:--|
-| `examples/` root | **IDF代码** (esp-lvgl-port + LVGL9) |
+| Resource | Link |
+| ---- | ---- |
+| Product datasheet (AM319M262928ZS) | [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf) |
+| Driver IC datasheet (CO6300) | [`docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf`](./docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf) |
+| Touch IC datasheet (CST3530) | [`docs/CST_3530_V1_0_adb72690f0.pdf`](./docs/CST_3530_V1_0_adb72690f0.pdf) |
+| Init sequence (text) | [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](./docs/AM319M262928ZS_CO6300_init_BOE3.19.txt) |
+| Adapter board demo photo | [`docs/adapter-board-demo.jpg`](./docs/adapter-board-demo.jpg) |
 
-### Sample project paths
+### Samples
 
-| Description | Path |
-|:--|:--|
-| esp-lvgl-port + LVGL9 | `examples/P4-IDF_CO6300-MIPI_ESP-LVGL-PORT_V9/` |
+- [ESP32-P4 CO6300 MIPI + CST3530 + LVGL](./examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/)
+
+## Buy
+
+<p align="center">
+  <a href="https://www.aliexpress.com/store/1105701619"><img alt="AliExpress store" src="https://img.shields.io/badge/AliExpress-Official_Store-FF6A00?style=for-the-badge" /></a>
+  &nbsp;&nbsp;
+  <a href="https://shop110742373.taobao.com/"><img alt="Taobao store" src="https://img.shields.io/badge/Taobao-Official_Store-FF6A00?style=for-the-badge" /></a>
+</p>
+
+**Overseas (AliExpress)**
+
+- Store: [OSPTEK Official Store](https://www.aliexpress.com/store/1105701619)
+
+**China (Taobao)**
+
+- Store: [鱼鹰光电工厂店](https://shop110742373.taobao.com/)
+
+## Support
+
+- Technical support / product inquiry: <luyu@osptek.com>
+- QQ group (China): **985881096**
+- Website: <https://osptek.com/>
+
+---
+
+<p align="center"><sub>© 2026 OSPTEK · Materials in this repository are licensed under CC BY 4.0</sub></p>

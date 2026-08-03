@@ -24,7 +24,7 @@ static const char *TAG = "Main";
 
 #define MIPI_DSI_DPI_CLK_MHZ 16
 
-#define MIPI_DSI_LCD_H_RES 272
+#define MIPI_DSI_LCD_H_RES 262
 #define MIPI_DSI_LCD_V_RES 928
 
 #define MIPI_DSI_LCD_HSYNC 4
@@ -63,8 +63,8 @@ static const co6300_lcd_init_cmd_t lcd_init_cmds[] = {
     {0xFE, (uint8_t[]){0x00}, 1, 0},
     {0x35, (uint8_t[]){0x00}, 1, 0},
     {0x3A, (uint8_t[]){0x77}, 1, 0},
-    {0x2A, (uint8_t[]){0x00, 0x0, 0x1, 0x0f}, 4, 0},
-    {0x2B, (uint8_t[]){0x00, 0x0, 0x3, 0x9f}, 4, 0},
+    {0x2A, (uint8_t[]){0x00, 0x00, 0x01, 0x05}, 4, 0},
+    {0x2B, (uint8_t[]){0x00, 0x00, 0x03, 0x9F}, 4, 0},
     {0x53, (uint8_t[]){0x20}, 1, 0},
     {0x51, (uint8_t[]){0xFF}, 1, 0},
     {0x63, (uint8_t[]){0xFF}, 1, 0},
