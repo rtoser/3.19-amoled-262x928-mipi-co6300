@@ -104,7 +104,7 @@ Current module version: **AM319M262928ZS**. Electrical and mechanical details fo
 - Technical support / product inquiry: <luyu@osptek.com>
 - QQ group (China): **985881096**
 - Website: <https://osptek.com/>
-- For questions or problems, you can also open a GitHub [Issue](https://github.com/osptek/3.19-amoled-262x928-mipi-co6300/issues)
+- Feel free to open an Issue in this repository if you have any questions
 
 ---
 
