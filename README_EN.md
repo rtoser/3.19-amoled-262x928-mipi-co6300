@@ -47,6 +47,7 @@ Repo id: `3.19-amoled-262x928-mipi-co6300`
 <p align="center"><img alt="AM319M262928ZS" src="./images/AM319M262928ZS.png" width="320" /></p>
 
 **Notes:** With touch (CST3530).
+
 ---
 
 ## How to Switch Branches
