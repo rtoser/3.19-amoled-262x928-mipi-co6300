@@ -2,9 +2,9 @@
 
 <h1 align="center">OSPTEK 3.19″ AMOLED 262×928 (CO6300 · MIPI)</h1>
 
-<p align="center"><b>Bar-style AMOLED module · MIPI DSI · CO6300</b></p>
+<p align="center"><b>Bar AMOLED module · MIPI DSI · CO6300 · Multi-Version Index</b></p>
 
-<p align="center"><a href="./README.md">简体中文</a> | English</p>
+<p align="center">English | <a href="./README.md">简体中文</a></p>
 
 <p align="center">
   <img alt="Size: 3.19 inch" src="https://img.shields.io/badge/Size-3.19%22-3498DB?style=flat-square" />
@@ -13,85 +13,61 @@
   <img alt="Driver: CO6300" src="https://img.shields.io/badge/Driver-CO6300-E7352C?style=flat-square" />
 </p>
 
-<p align="center"><img alt="OSPTEK 3.19&quot; 262×928 AMOLED MIPI module (CO6300) product image" src="./images/product.png" width="640" /></p>
-
 ## Contents
 
-- [Overview](#overview)
-- [Specifications](#specifications)
-- [Sample projects](#sample-projects)
-- [Repository layout](#repository-layout)
-- [Resources](#resources)
-- [Buy](#buy)
+- [About](#about)
+- [Versions](#versions)
+- [AM319M262928ZS](#am319m262928zs)
+- [How to Switch Branches](#how-to-switch-branches)
+- [Where to Buy](#where-to-buy)
 - [Support](#support)
 
 ---
 
-## Overview
+## About
 
-OSPTEK **3.19″ 262×928 AMOLED** is a **MIPI DSI** color display module driven by **CO6300**, with touch controller **CST3530**. The tall aspect ratio suits bar-style HMI, side status strips, and vertical info panels.
+This repository holds materials for the **3.19″ 262×928 AMOLED (MIPI · CO6300)** module family.
 
-Spec ID (repository name): `3.19-amoled-262x928-mipi-co6300`
+**`main` is the navigation page** (repository default). Use the table below for a quick scan; click **Details** to jump to the section on this page. For a given version’s full content, switch to that **version branch** (see below).
 
-Current module version: **AM319M262928ZS**. Electrical and mechanical details follow [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf).
+Repo id: `3.19-amoled-262x928-mipi-co6300`
 
-## Specifications
+---
 
-| Item | Spec |
-| ---- | ---- |
-| Size | 3.19 inch |
-| Type | AMOLED (color) |
-| Resolution | 262×928 |
-| Interface | MIPI DSI |
-| Driver IC | CO6300 |
-| Touch IC | CST3530 |
+## Versions
 
-> Full outline, FPC definition, power, and timing follow the product datasheet / driver IC datasheet.
+| Version | Image | Notes |
+| ------- | ----- | ----- |
+| AM319M262928ZS | <img alt="AM319M262928ZS" src="./images/AM319M262928ZS.png" width="120" /> | [Details](#am319m262928zs) |
 
-## Sample projects
+---
 
-| Description | Path |
-| ---- | ---- |
-| ESP32-P4 · CO6300 MIPI + CST3530 + LVGL | [`examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/`](./examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/) |
+## AM319M262928ZS
 
-## Repository layout
+<p align="center"><img alt="AM319M262928ZS" src="./images/AM319M262928ZS.png" width="320" /></p>
 
-```text
-3.19-amoled-262x928-mipi-co6300/
-├── README.md
-├── README_EN.md
-├── MODULE_VERSION.md
-├── LICENSE
-├── images/          # README assets
-├── docs/            # datasheets, init files
-└── examples/        # sample projects
-```
+**Notes:** With touch (CST3530).
 
-## Resources
+---
 
-### Product files
+## How to Switch Branches
 
-| Resource | Link |
-| ---- | ---- |
-| Product datasheet (AM319M262928ZS) | [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf) |
-| Driver IC datasheet (CO6300) | [`docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf`](./docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf) |
-| Touch IC datasheet (CST3530) | [`docs/CST_3530_V1_0_adb72690f0.pdf`](./docs/CST_3530_V1_0_adb72690f0.pdf) |
-| Init sequence (text) | [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](./docs/AM319M262928ZS_CO6300_init_BOE3.19.txt) |
-| Adapter board demo photo | [`docs/adapter-board-demo.jpg`](./docs/adapter-board-demo.jpg) |
+Full product materials are on each **version branch**; `main` is navigation only.
 
-### Samples
+- **Web:** open the branch dropdown at the top left of the repository page and select the branch that matches your part number.
+- **CLI:** after cloning, run `git checkout <version-branch>`; if the repo is already local, `git fetch` first, then switch.
 
-- [ESP32-P4 CO6300 MIPI + CST3530 + LVGL](./examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/)
+---
 
-## Buy
+## Where to Buy
 
 <p align="center">
-  <a href="https://www.aliexpress.com/store/1105701619"><img alt="AliExpress store" src="https://img.shields.io/badge/AliExpress-Official_Store-FF6A00?style=for-the-badge" /></a>
+  <a href="https://www.aliexpress.com/store/1105701619"><img alt="AliExpress Official Store" src="https://img.shields.io/badge/AliExpress-Official_Store-E62E04?style=for-the-badge&logo=aliexpress&logoColor=white" /></a>
   &nbsp;&nbsp;
-  <a href="https://shop110742373.taobao.com/"><img alt="Taobao store" src="https://img.shields.io/badge/Taobao-Official_Store-FF6A00?style=for-the-badge" /></a>
+  <a href="https://shop110742373.taobao.com/"><img alt="Taobao Official Store" src="https://img.shields.io/badge/Taobao-Official_Store-FF6A00?style=for-the-badge" /></a>
 </p>
 
-**Overseas (AliExpress)**
+**International (AliExpress)**
 
 - Store: [OSPTEK Official Store](https://www.aliexpress.com/store/1105701619)
 
@@ -99,13 +75,15 @@ Current module version: **AM319M262928ZS**. Electrical and mechanical details fo
 
 - Store: [鱼鹰光电工厂店](https://shop110742373.taobao.com/)
 
+---
+
 ## Support
 
-- Technical support / product inquiry: <luyu@osptek.com>
-- QQ group (China): **985881096**
+- Technical Support / Sales: <luyu@osptek.com>
+- QQ Technical Group: **985881096**
 - Website: <https://osptek.com/>
 - Feel free to open an Issue in this repository if you have any questions
 
 ---
 
-<p align="center"><sub>© 2026 OSPTEK · Materials in this repository are licensed under CC BY 4.0</sub></p>
+<p align="center"><sub>© 2026 OSPTEK · Licensed under CC BY 4.0</sub></p>
