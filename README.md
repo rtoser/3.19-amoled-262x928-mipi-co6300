@@ -47,7 +47,6 @@
 <p align="center"><img alt="AM319M262928ZS" src="./images/AM319M262928ZS.png" width="320" /></p>
 
 **说明：** 带触摸（CST3530）。
-
 ---
 
 ## 如何切换分支
