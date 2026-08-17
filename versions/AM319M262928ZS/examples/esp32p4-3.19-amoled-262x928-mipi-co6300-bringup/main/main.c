@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 OSPTEK
+ * SPDX-License-Identifier: CC-BY-4.0
+ *
+ * https://github.com/osptek
+ */
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
