@@ -54,6 +54,8 @@ OSPTEK **3.19 寸 262×928 AMOLED** 是一款 **MIPI DSI** 接口彩色显示模
 | ---- | ---- |
 | ESP32-P4 · CO6300 MIPI + CST3530 + LVGL | [`examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/`](./examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/) |
 
+> 环境要求、编译与烧录步骤、引脚定义见示例目录下的 [README](./examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/README.md)。
+
 ## 仓库结构
 
 ```text

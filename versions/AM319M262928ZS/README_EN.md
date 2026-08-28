@@ -54,6 +54,8 @@ Current module version: **AM319M262928ZS**. Electrical and mechanical details fo
 | ----------- | ---- |
 | ESP32-P4 · CO6300 MIPI + CST3530 + LVGL | [`examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/`](./examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/) |
 
+> Toolchain requirements, build/flash steps and the pin map are in the example's [README](./examples/esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/README_EN.md).
+
 ## Repository layout
 
 ```text
