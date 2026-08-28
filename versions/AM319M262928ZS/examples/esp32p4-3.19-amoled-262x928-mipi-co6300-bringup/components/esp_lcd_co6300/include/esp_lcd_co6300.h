@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 
+#include "esp_idf_version.h"
 #include "hal/lcd_types.h"
 #include "esp_lcd_panel_vendor.h"
 
@@ -160,14 +161,23 @@ esp_err_t esp_lcd_new_panel_co6300(const esp_lcd_panel_io_handle_t io, const esp
  *
  * @note  refresh_rate = (dpi_clock_freq_mhz * 1000000) / (h_res + hsync_pulse_width + hsync_back_porch + hsync_front_porch)
  *                                                      / (v_res + vsync_pulse_width + vsync_back_porch + vsync_front_porch)
+ * @note  `color_format` is a `lcd_color_format_t`, e.g. `LCD_COLOR_FMT_RGB565`.
+ * @note  ESP-IDF < 6.0 enables DMA2D through the `use_dma2d` flag set here. ESP-IDF >= 6.0 removed that flag;
+ *        call `esp_lcd_dpi_panel_enable_dma2d()` on the panel returned by `esp_lcd_new_panel_co6300()` instead.
  *
  */
-#define CO6300_262_928_PANEL_60HZ_DPI_CONFIG(px_format)          \
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
+#define CO6300_DPI_CONFIG_DMA2D_FLAG .flags.use_dma2d = true,
+#else
+#define CO6300_DPI_CONFIG_DMA2D_FLAG
+#endif
+
+#define CO6300_262_928_PANEL_60HZ_DPI_CONFIG(color_format)       \
     {                                                            \
         .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,             \
         .dpi_clock_freq_mhz = 20,                                \
         .virtual_channel = 0,                                    \
-        .pixel_format = px_format,                               \
+        .in_color_format = color_format,                         \
         .num_fbs = 1,                                            \
         .video_timing = {                                        \
             .h_size = 262,                                       \
@@ -175,11 +185,11 @@ esp_err_t esp_lcd_new_panel_co6300(const esp_lcd_panel_io_handle_t io, const esp
             .hsync_back_porch = 32,                              \
             .hsync_pulse_width = 2,                              \
             .hsync_front_porch = 32,                             \
-            .vsync_back_porch = 8,                              \
+            .vsync_back_porch = 8,                               \
             .vsync_pulse_width = 2,                              \
-            .vsync_front_porch = 8,                             \
+            .vsync_front_porch = 8,                              \
         },                                                       \
-        .flags.use_dma2d = true,                                 \
+        CO6300_DPI_CONFIG_DMA2D_FLAG                             \
     }
 
 #ifdef __cplusplus

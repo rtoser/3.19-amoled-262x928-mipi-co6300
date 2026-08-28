@@ -9,11 +9,13 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "driver/i2c.h"
+#include "driver/gpio.h"
+#include "driver/i2c_master.h"
 
 #include "esp_attr.h"
 #include "esp_check.h"
 #include "esp_err.h"
+#include "esp_idf_version.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
@@ -57,6 +59,7 @@ static const char *TAG = "Main";
 
 static esp_lcd_panel_io_handle_t mipi_dbi_io = NULL;
 static esp_lcd_panel_handle_t mipi_dpi_panel = NULL;
+static i2c_master_bus_handle_t touch_i2c_bus = NULL;
 static esp_lcd_touch_handle_t tp = NULL;
 
 static lv_display_t *lvgl_disp = NULL;
@@ -97,17 +100,10 @@ static void lcd_vci_en_init(void) {
     vTaskDelay(pdMS_TO_TICKS(50));
 }
 
-static void i2c_scan(void) {
+static void i2c_scan(i2c_master_bus_handle_t bus) {
     ESP_LOGI(TAG, "Scanning I2C bus...");
     for (uint8_t addr = 1; addr < 127; addr++) {
-        i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-        i2c_master_start(cmd);
-        i2c_master_write_byte(cmd, (addr << 1) | I2C_MASTER_WRITE, true);
-        i2c_master_stop(cmd);
-        esp_err_t ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, 1000 / portTICK_PERIOD_MS);
-        i2c_cmd_link_delete(cmd);
-
-        if (ret == ESP_OK) {
+        if (i2c_master_probe(bus, addr, 50) == ESP_OK) {
             ESP_LOGI(TAG, "Found I2C device at address 0x%02x", addr);
         }
     }
@@ -144,9 +140,9 @@ esp_err_t app_lcd_init() {
 
     esp_lcd_dpi_panel_config_t dpi_config = {
         .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-        .dpi_clock_freq_mhz = 16,
+        .dpi_clock_freq_mhz = MIPI_DSI_DPI_CLK_MHZ,
         .virtual_channel = 0,
-        .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
+        .in_color_format = LCD_COLOR_FMT_RGB565,
         .num_fbs = 1,
         .video_timing =
             {
@@ -159,10 +155,12 @@ esp_err_t app_lcd_init() {
                 .vsync_pulse_width = MIPI_DSI_LCD_VSYNC,
                 .vsync_front_porch = MIPI_DSI_LCD_VFP,
             },
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
         .flags =
             {
                 .use_dma2d = true,
             }
+#endif
     };
 
     co6300_vendor_config_t vendor_config = {0};
@@ -180,6 +178,10 @@ esp_err_t app_lcd_init() {
     };
 
     ESP_ERROR_CHECK(esp_lcd_new_panel_co6300(mipi_dbi_io, &lcd_dev_config, &mipi_dpi_panel));
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    // IDF 6.0 removed `flags.use_dma2d`; DMA2D is enabled on the DPI panel explicitly instead
+    ESP_ERROR_CHECK(esp_lcd_dpi_panel_enable_dma2d(mipi_dpi_panel));
+#endif
     esp_lcd_panel_reset(mipi_dpi_panel);
     esp_lcd_panel_init(mipi_dpi_panel);
 
@@ -204,21 +206,20 @@ esp_err_t app_touch_init() {
     gpio_set_level(EXAMPLE_PIN_NUM_TOUCH_RST, 1);
     vTaskDelay(pdMS_TO_TICKS(20));
 
-    const i2c_config_t i2c_conf = {
-        .mode = I2C_MODE_MASTER,
+    const i2c_master_bus_config_t i2c_bus_cfg = {
+        .i2c_port = TOUCH_HOST,
         .sda_io_num = EXAMPLE_PIN_NUM_TOUCH_SDA,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
         .scl_io_num = EXAMPLE_PIN_NUM_TOUCH_SCL,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 400 * 1000,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
     };
-    ESP_ERROR_CHECK(i2c_param_config(TOUCH_HOST, &i2c_conf));
-    ESP_ERROR_CHECK(i2c_driver_install(TOUCH_HOST, i2c_conf.mode, 0, 0, 0));
-    i2c_scan();
+    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &touch_i2c_bus));
+    i2c_scan(touch_i2c_bus);
 
     esp_lcd_panel_io_handle_t tp_io_handle = NULL;
     const esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_CST3530_CONFIG();
-    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c((esp_lcd_i2c_bus_handle_t)TOUCH_HOST, &tp_io_config, &tp_io_handle));
+    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(touch_i2c_bus, &tp_io_config, &tp_io_handle));
     // 给 INT 脚上拉，避免悬空噪声误报
     gpio_set_pull_mode(EXAMPLE_PIN_NUM_TOUCH_INT, GPIO_PULLUP_ONLY);
 

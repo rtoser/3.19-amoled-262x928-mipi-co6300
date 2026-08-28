@@ -1,7 +1,9 @@
 dependencies:
-  espressif/esp_lvgl_port: ^2.7.0
+  # esp_lvgl_port 2.9.0 uses the DPI `on_frame_buf_complete` callback on IDF >= 5.5, which only
+  # exists in IDF v5.5.5+, v6.0.3+ and v6.1+. On older releases pin `~2.8.0` instead.
+  espressif/esp_lvgl_port: ^2.9.0
   idf:
-    version: '>=5.1.0'
+    version: '>=5.5.5,!=6.0.0,!=6.0.1,!=6.0.2'
   lvgl/lvgl:
-    version: 9.3.*
+    version: 9.5.*
     public: true

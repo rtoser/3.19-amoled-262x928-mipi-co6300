@@ -10,13 +10,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
+#include "esp_rom_sys.h"
 #include "esp_system.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_check.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_touch.h"
-#include "driver/i2c.h"
 
 #include "esp_lcd_touch_cst3530.h"
 
@@ -28,7 +28,9 @@
 
 #define DATA_START_REG (0xD0070000)
 #define DATA_CLEAR_REG (0xD00002AB)
-#define CHIP_ID_REG (0xA7)
+#define REG_ADDR_BYTES (4)
+/* Datasheet: bus free time between STOP and the next START (Tbuf) >= 1.5 us */
+#define REG_ACCESS_GAP_US (100)
 
 static const char *TAG = "CST3530";
 
@@ -36,11 +38,10 @@ static esp_err_t read_data(esp_lcd_touch_handle_t tp);
 static bool get_xy(esp_lcd_touch_handle_t tp, uint16_t *x, uint16_t *y, uint16_t *strength, uint8_t *point_num, uint8_t max_point_num);
 static esp_err_t del(esp_lcd_touch_handle_t tp);
 
-static void readRegisterBuf(uint32_t reg, uint8_t *buf, size_t len);
-static void writeCommand(uint32_t cmd);
+static esp_err_t write_reg(esp_lcd_touch_handle_t tp, uint32_t reg);
+static esp_err_t read_reg(esp_lcd_touch_handle_t tp, uint32_t reg, uint8_t *buf, size_t len);
 
 static esp_err_t reset(esp_lcd_touch_handle_t tp);
-static esp_err_t read_id(esp_lcd_touch_handle_t tp);
 
 esp_err_t esp_lcd_touch_new_i2c_cst3530(const esp_lcd_panel_io_handle_t io, const esp_lcd_touch_config_t *config, esp_lcd_touch_handle_t *tp)
 {
@@ -89,8 +90,6 @@ esp_err_t esp_lcd_touch_new_i2c_cst3530(const esp_lcd_panel_io_handle_t io, cons
     }
     /* Reset controller */
     ESP_GOTO_ON_ERROR(reset(cst3530), err, TAG, "Reset failed");
-    /* Read product id */
-    ESP_GOTO_ON_ERROR(read_id(cst3530), err, TAG, "Read version failed");
     *tp = cst3530;
 
     return ESP_OK;
@@ -107,15 +106,21 @@ static esp_err_t read_data(esp_lcd_touch_handle_t tp)
 {
     uint8_t buf[64] = {0};
     uint8_t finger_num = 0, key_num = 0, report_typ = 0;
-    int ret = 0;
 
-    readRegisterBuf(DATA_START_REG, buf, 64);
+    esp_err_t ret = read_reg(tp, DATA_START_REG, buf, sizeof(buf));
+    if (ret != ESP_OK)
+    {
+        portENTER_CRITICAL(&tp->data.lock);
+        tp->data.points = 0;
+        portEXIT_CRITICAL(&tp->data.lock);
+        return ret;
+    }
 
     report_typ = buf[2];
     finger_num = buf[3] & 0x0F;
     key_num = ((buf[3] & 0xF0) >> 4); // 用不到
 
-    writeCommand(DATA_CLEAR_REG);
+    write_reg(tp, DATA_CLEAR_REG);
     portENTER_CRITICAL(&tp->data.lock);
     tp->data.points = (finger_num > POINT_NUM_MAX ? POINT_NUM_MAX : finger_num);
 
@@ -206,57 +211,23 @@ static esp_err_t reset(esp_lcd_touch_handle_t tp)
     return ESP_OK;
 }
 
-static esp_err_t read_id(esp_lcd_touch_handle_t tp)
+/* Register addresses are 32-bit with the top bit set, which cannot be carried in the `int lcd_cmd`
+ * argument of the panel IO layer on every IDF release. They are therefore sent as plain parameter
+ * bytes (`lcd_cmd = -1`), which both the legacy and the new I2C panel IO implementations honour. */
+static esp_err_t write_reg(esp_lcd_touch_handle_t tp, uint32_t reg)
 {
-    uint8_t id;
-    // 不知道芯片ID的寄存器在哪里,忽略
-    // ESP_RETURN_ON_ERROR(i2c_read_bytes(tp, CHIP_ID_REG, &id, 1), TAG, "I2C read failed");
-    // ESP_LOGI(TAG, "IC id: %d", id);
+    const uint8_t addr[REG_ADDR_BYTES] = {(reg >> 24) & 0xFF, (reg >> 16) & 0xFF, (reg >> 8) & 0xFF, reg & 0xFF};
+
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(tp->io, -1, addr, sizeof(addr)), TAG, "I2C write failed");
+    esp_rom_delay_us(REG_ACCESS_GAP_US);
+
     return ESP_OK;
 }
 
-static void readRegisterBuf(uint32_t reg, uint8_t *buf, size_t len)
+static esp_err_t read_reg(esp_lcd_touch_handle_t tp, uint32_t reg, uint8_t *buf, size_t len)
 {
-    esp_err_t ret;
-    uint8_t cmd[4] = {(reg >> 24) & 0xFF, (reg >> 16) & 0xFF, (reg >> 8) & 0xFF, reg & 0xFF};
+    ESP_RETURN_ON_ERROR(write_reg(tp, reg), TAG, "Set register address failed");
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_rx_param(tp->io, -1, buf, len), TAG, "I2C read failed");
 
-    // Phase 1: 写寄存器地址，不发送 STOP
-    i2c_cmd_handle_t cmd_handle = i2c_cmd_link_create();
-    i2c_master_start(cmd_handle);
-    i2c_master_write_byte(cmd_handle, (ESP_LCD_TOUCH_IO_I2C_CST3530_ADDRESS << 1) | I2C_MASTER_WRITE, true);
-    i2c_master_write(cmd_handle, cmd, 4, true);
-    ret = i2c_master_cmd_begin(CST3530_I2C_NUM, cmd_handle, pdMS_TO_TICKS(50));
-    i2c_cmd_link_delete(cmd_handle);
-    if (ret != ESP_OK)
-        return;
-
-    esp_rom_delay_us(100);
-
-    // Phase 2: 读 len 字节
-    cmd_handle = i2c_cmd_link_create();
-    i2c_master_start(cmd_handle);
-    i2c_master_write_byte(cmd_handle, (ESP_LCD_TOUCH_IO_I2C_CST3530_ADDRESS << 1) | I2C_MASTER_READ, true);
-    if (len > 1)
-    {
-        i2c_master_read(cmd_handle, buf, len - 1, I2C_MASTER_ACK);
-    }
-    i2c_master_read_byte(cmd_handle, &buf[len - 1], I2C_MASTER_NACK);
-    i2c_master_stop(cmd_handle);
-    i2c_master_cmd_begin(CST3530_I2C_NUM, cmd_handle, pdMS_TO_TICKS(100));
-    i2c_cmd_link_delete(cmd_handle);
-}
-
-static void writeCommand(uint32_t cmd)
-{
-    uint8_t buf[4] = {(cmd >> 24) & 0xFF, (cmd >> 16) & 0xFF, (cmd >> 8) & 0xFF, cmd & 0xFF};
-
-    i2c_cmd_handle_t cmd_handle = i2c_cmd_link_create();
-    i2c_master_start(cmd_handle);
-    i2c_master_write_byte(cmd_handle, (ESP_LCD_TOUCH_IO_I2C_CST3530_ADDRESS << 1) | I2C_MASTER_WRITE, true);
-    i2c_master_write(cmd_handle, buf, 4, true);
-    i2c_master_stop(cmd_handle);
-    i2c_master_cmd_begin(CST3530_I2C_NUM, cmd_handle, pdMS_TO_TICKS(100));
-    i2c_cmd_link_delete(cmd_handle);
-
-    esp_rom_delay_us(100);
+    return ESP_OK;
 }

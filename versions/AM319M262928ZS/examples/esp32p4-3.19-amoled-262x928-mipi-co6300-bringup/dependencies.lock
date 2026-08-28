@@ -10,11 +10,11 @@ dependencies:
       type: service
     version: 1.2.1
   espressif/esp_lvgl_port:
-    component_hash: f872401524cb645ee6ff1c9242d44fb4ddcfd4d37d7be8b9ed3f4e85a404efcd
+    component_hash: d3c020b45c3dfc0d1706a83b63a1c34a6eb444a6e935f9afff79f92b7b94dcef
     dependencies:
     - name: idf
       require: private
-      version: '>=5.1'
+      version: '>=5.2'
     - name: lvgl/lvgl
       registry_url: https://components.espressif.com
       require: public
@@ -22,23 +22,23 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 2.7.0
+    version: 2.9.0
   idf:
     source:
       type: idf
-    version: 5.5.3
+    version: 6.1.0
   lvgl/lvgl:
-    component_hash: b702d642e03e95928046d5c6726558e6444e112420c77efa5fdb6650b0a13c5d
+    component_hash: 184e532558c1c45fefed631f3e235423d22582aafb4630f3e8885c35281a49ae
     dependencies: []
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 9.3.0
+    version: 9.5.0
 direct_dependencies:
 - espressif/esp_lcd_touch
 - espressif/esp_lvgl_port
 - idf
 - lvgl/lvgl
-manifest_hash: fa80be6d6043fe778b74a1a6e2ee33ffab0060fc2c41d8e3d520d5be21e19190
+manifest_hash: 6963768d735c63c25e01be896eca6fee27b28cb51c12c223447144196c7d597e
 target: esp32p4
-version: 2.0.0
+version: 3.0.0
