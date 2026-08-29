@@ -46,12 +46,15 @@ static const char *TAG = "Main";
 #define TEST_MIPI_DSI_PHY_PWR_LDO_CHAN 3
 #define TEST_MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV 2500
 
-#define EXAMPLE_PIN_NUM_TOUCH_SCL (GPIO_NUM_8)
-#define EXAMPLE_PIN_NUM_TOUCH_SDA (GPIO_NUM_7)
-#define EXAMPLE_PIN_NUM_TOUCH_RST (GPIO_NUM_16)
-#define EXAMPLE_PIN_NUM_TOUCH_INT (GPIO_NUM_17)
-
-#define LCD_VCI_EN_GPIO GPIO_NUM_22
+/* 引脚在 menuconfig -> "Example Configuration (AM319M262928ZS bring-up)" 中配置，默认值对应
+ * 转接板实拍所用的开发板；其他底板（如 ESP32-P4 模组基础底板 V1.3）的取值见 README「硬件连接」。
+ * LCD_RST = -1 表示不接线、改用 DCS 软件复位；VCI_EN / TP_RST / TP_INT = -1 表示该线未连接。 */
+#define EXAMPLE_PIN_NUM_LCD_RST    CONFIG_EXAMPLE_PIN_NUM_LCD_RST
+#define EXAMPLE_PIN_NUM_LCD_VCI_EN CONFIG_EXAMPLE_PIN_NUM_LCD_VCI_EN
+#define EXAMPLE_PIN_NUM_TOUCH_SCL  CONFIG_EXAMPLE_PIN_NUM_TOUCH_SCL
+#define EXAMPLE_PIN_NUM_TOUCH_SDA  CONFIG_EXAMPLE_PIN_NUM_TOUCH_SDA
+#define EXAMPLE_PIN_NUM_TOUCH_RST  CONFIG_EXAMPLE_PIN_NUM_TOUCH_RST
+#define EXAMPLE_PIN_NUM_TOUCH_INT  CONFIG_EXAMPLE_PIN_NUM_TOUCH_INT
 
 #define TOUCH_HOST I2C_NUM_0
 
@@ -83,8 +86,12 @@ static const co6300_lcd_init_cmd_t lcd_init_cmds[] = {
 };
 
 static void lcd_vci_en_init(void) {
+    if (EXAMPLE_PIN_NUM_LCD_VCI_EN < 0) {
+        ESP_LOGW(TAG, "VCI_EN not driven (pin = -1); relying on the adapter board pull-up");
+        return;
+    }
     gpio_config_t cfg = {
-        .pin_bit_mask = 1ULL << LCD_VCI_EN_GPIO,
+        .pin_bit_mask = 1ULL << EXAMPLE_PIN_NUM_LCD_VCI_EN,
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -92,10 +99,10 @@ static void lcd_vci_en_init(void) {
     };
     gpio_config(&cfg);
 
-    gpio_set_level(LCD_VCI_EN_GPIO, 0);
+    gpio_set_level(EXAMPLE_PIN_NUM_LCD_VCI_EN, 0);
     vTaskDelay(pdMS_TO_TICKS(60));
 
-    gpio_set_level(LCD_VCI_EN_GPIO, 1);
+    gpio_set_level(EXAMPLE_PIN_NUM_LCD_VCI_EN, 1);
 
     vTaskDelay(pdMS_TO_TICKS(50));
 }
@@ -171,7 +178,7 @@ esp_err_t app_lcd_init() {
     vendor_config.mipi_config.dpi_config = &dpi_config;
 
     esp_lcd_panel_dev_config_t lcd_dev_config = {
-        .reset_gpio_num = 6,
+        .reset_gpio_num = EXAMPLE_PIN_NUM_LCD_RST,
         .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
         .bits_per_pixel = 16,
         .vendor_config = &vendor_config,
@@ -194,17 +201,19 @@ esp_err_t app_lcd_init() {
 esp_err_t app_touch_init() {
     ESP_LOGI(TAG, "Initialize I2C bus");
 
-    // 确保触摸 RST 释放，否则 I2C 无应答
-    const gpio_config_t rst_cfg = {
-        .pin_bit_mask = 1ULL << EXAMPLE_PIN_NUM_TOUCH_RST,
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    gpio_config(&rst_cfg);
-    gpio_set_level(EXAMPLE_PIN_NUM_TOUCH_RST, 1);
-    vTaskDelay(pdMS_TO_TICKS(20));
+    // 确保触摸 RST 释放，否则 I2C 无应答（未接线时由转接板 RC 上拉释放）
+    if (EXAMPLE_PIN_NUM_TOUCH_RST >= 0) {
+        const gpio_config_t rst_cfg = {
+            .pin_bit_mask = 1ULL << EXAMPLE_PIN_NUM_TOUCH_RST,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&rst_cfg);
+        gpio_set_level(EXAMPLE_PIN_NUM_TOUCH_RST, 1);
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
 
     const i2c_master_bus_config_t i2c_bus_cfg = {
         .i2c_port = TOUCH_HOST,
@@ -221,7 +230,9 @@ esp_err_t app_touch_init() {
     const esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_CST3530_CONFIG();
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(touch_i2c_bus, &tp_io_config, &tp_io_handle));
     // 给 INT 脚上拉，避免悬空噪声误报
-    gpio_set_pull_mode(EXAMPLE_PIN_NUM_TOUCH_INT, GPIO_PULLUP_ONLY);
+    if (EXAMPLE_PIN_NUM_TOUCH_INT >= 0) {
+        gpio_set_pull_mode(EXAMPLE_PIN_NUM_TOUCH_INT, GPIO_PULLUP_ONLY);
+    }
 
     const esp_lcd_touch_config_t tp_cfg = {
         .x_max = MIPI_DSI_LCD_H_RES,
@@ -297,8 +308,10 @@ esp_err_t app_lvgl_init() {
 void app_main(void) {
     lcd_vci_en_init();
 
-    ESP_ERROR_CHECK(app_lcd_init());
+    // 先初始化触摸并扫描 I2C：能扫到 0x58 说明排线、3V3 与触摸复位都正常。
+    // DSI 读 ID 在面板不应答时会无限等待（IDF 的读 FIFO 循环没有超时），放在后面便于定位。
     ESP_ERROR_CHECK(app_touch_init());
+    ESP_ERROR_CHECK(app_lcd_init());
     ESP_ERROR_CHECK(app_lvgl_init());
 
     lvgl_port_lock(-1);

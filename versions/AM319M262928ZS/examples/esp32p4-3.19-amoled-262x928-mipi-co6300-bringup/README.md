@@ -25,22 +25,57 @@
 本示例在 ESP32-P4 上完成以下流程，最终运行 LVGL 9 的 `lv_demo_widgets()`：
 
 1. 通过 `VCI_EN` 给 AMOLED 上电（先拉低 60 ms 再拉高，等待 50 ms）；
-2. 打开 MIPI DSI PHY 的 LDO（通道 3，2.5 V），创建 1 data lane / 360 Mbps 的 DSI 总线；
-3. 通过 DBI IO 发送 CO6300 初始化序列（`main.c` 中的 `lcd_init_cmds[]`，对应 [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](../../docs/AM319M262928ZS_CO6300_init_BOE3.19.txt)），创建 RGB565 DPI 面板并启用 DMA2D；
-4. 初始化 I2C（400 kHz）并扫描总线，创建 CST3530 触摸驱动；
+2. 初始化 I2C（400 kHz）并扫描总线，创建 CST3530 触摸驱动——放在 DSI 之前：能扫到 `0x58` 就说明排线、3V3 与触摸复位都正常；
+3. 打开 MIPI DSI PHY 的 LDO（通道 3，2.5 V），创建 1 data lane / 360 Mbps 的 DSI 总线；
+4. 硬件复位面板、读取 ID（`RDDID 04h`，本模组为 `33 12 00`），通过 DBI IO 发送 CO6300 初始化序列（`main.c` 中的 `lcd_init_cmds[]`，对应 [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](../../docs/AM319M262928ZS_CO6300_init_BOE3.19.txt)），创建 RGB565 DPI 面板并启用 DMA2D；
 5. 通过 `esp_lvgl_port` 注册显示与触摸，启动 LVGL 演示。
 
 ## 硬件连接
 
-| 信号 | ESP32-P4 GPIO | 说明 |
-| ---- | ------------- | ---- |
-| LCD RST | GPIO6 | 低电平复位 |
-| LCD VCI_EN | GPIO22 | AMOLED 电源使能 |
-| MIPI DSI CLK / D0 | 专用引脚 | 1 data lane，360 Mbps；PHY 由 LDO 通道 3 供电 2.5 V |
-| TP SDA | GPIO7 | I2C0，内部上拉，400 kHz |
-| TP SCL | GPIO8 | |
-| TP RST | GPIO16 | |
-| TP INT | GPIO17 | 内部上拉 |
+模组自带的 30-pin 板对板座不能直插开发板，必须经过 OSPTEK 转接板（原理图见下）。转接板 **J1** 是树莓派 15-pin DSI 定义的排线座，**J2** 是 2×3 排针（LCD_RST、VCI_EN、TP_RST、TP_INT、LCD_TE、GND）。
+
+### 15P 排线：转接板 J1 ↔ 开发板 MIPI-DSI 座
+
+| J1 脚 | 信号 | 说明 |
+| ----- | ---- | ---- |
+| 1 / 4 / 7 / 10 / 13 | GND | |
+| 2 / 3 | DSI D1 N / P | 模组未引出 D1，闲置 |
+| 5 / 6 | DSI CLK N / P | |
+| 8 / 9 | DSI D0 N / P | 1 data lane，360 Mbps；PHY 由 LDO 通道 3 供电 2.5 V |
+| 11 / 12 | I2C SCL / SDA（触摸） | 开发板侧为 GPIO8 / GPIO7，I2C0，内部上拉，400 kHz |
+| 14 / 15 | +3V3 | 整块屏（含触摸）的唯一供电 |
+
+排线两端的 pin 1（GND）必须对齐——反插会把 3V3 短到 GND；上电前先用万用表量转接板 C1 两端不短路。
+
+### J2 控制线：杜邦线 → GPIO
+
+| J2 信号 | 必要性 | 默认 GPIO | 说明 |
+| ------- | ------ | --------- | ---- |
+| LCD_RST | **必接** | 6 | 低电平复位。设为 -1 时改用 DCS 软件复位，但只靠转接板的 RC 复位不够，见下 |
+| VCI_EN | **必接** | 22 | AMOLED PMIC 使能；示例上电时先拉低 60 ms 再拉高 |
+| GND | **必接** | — | |
+| TP_RST | 可选 | -1（不接） | 不接时由转接板 10K + 0.1 µF 的 RC 自动释放 |
+| TP_INT | 可选 | -1（不接） | 不接时 `esp_lvgl_port` 轮询读取；**一旦配置了引脚就切到中断（事件）模式，该线没接则触摸完全无响应** |
+| LCD_TE | 不用 | — | 视频模式用不到 |
+
+引脚在 `idf.py menuconfig` → *Example Configuration (AM319M262928ZS bring-up)* 中修改（`CONFIG_EXAMPLE_PIN_NUM_LCD_RST` / `_LCD_VCI_EN` / `_TOUCH_SDA` / `_TOUCH_SCL` / `_TOUCH_RST` / `_TOUCH_INT`，-1 表示该线未连接）。
+
+**只接排线点不亮**（2026-08-29 实测）：转接板虽然把 VCI_EN、LCD_RST 都上拉了，但 RC 在 3V3 上电后约 1 ms 就释放 RESX，早于 PMIC 把 VCI 拉稳（CO6300 手册 §5.8.2 要求 VCI 有效后 ≥10 ms 再释放复位），面板进入不应答状态——DSI 读 ID 无回包、DCS 软件复位也救不回来。接上 LCD_RST + VCI_EN + GND 三根线后读回 `LCD ID: 33 12 00`，屏幕点亮。
+
+### 各开发板的排针位置
+
+| 信号 | ESP32-P4 模组基础底板 V1.3（资料见 [`docs/boards/`](../../../../docs/boards/)，P4C5 / P4C6 核心板通用） | 转接板实拍所用开发板 |
+| ---- | ---- | ---- |
+| LCD_RST | GPIO6 → J4 pin 23 | GPIO6 |
+| VCI_EN | GPIO22 → J4 pin 33 | GPIO22 |
+| GND | J4 pin 1 / 2 | GND |
+| TP_RST（可选） | GPIO23 → J4 pin 34，menuconfig 设 23 | GPIO16 |
+| TP_INT（可选） | GPIO21 → J4 pin 32，menuconfig 设 21 | GPIO17 |
+| MIPI-DSI 座 | 丝印 **MIPI-DSI** 的 15P 座（旁边的 MIPI-CSI 别插错） | 15P DSI 座 |
+
+仓库自带的 `sdkconfig` 已按「V1.3 底板 + 接了 TP 线」设置（TP_RST 23、TP_INT 21）；没接 TP 线就把这两项设为 -1，实拍板设为 16 / 17。删除 `sdkconfig` 重新生成时会回到 Kconfig 默认值（-1 / -1，轮询）。
+
+V1.3 底板注意：GPIO14–19 是 P4 与无线协处理器（C5 / C6）之间的 SDIO 总线，排针没有引出，**不能**把 TP_RST / TP_INT 配成 16 / 17（INT 永远不会触发，触摸无响应）；触摸 I2C 总线上还挂着底板的 ES8311 音频编解码（`0x18`），扫描到它是正常的；GPIO20 是 SY7200 背光升压的使能，AMOLED 没有背光，不要拉高。
 
 DPI 时序：262 × 928，HSYNC 4 / HBP 32 / HFP 32，VSYNC 4 / VBP 8 / VFP 8，像素时钟 16 MHz（刷新率约 51 Hz）。
 
@@ -90,12 +125,16 @@ VS Code：安装 ESP-IDF 扩展并选择 v6.1，用「打开文件夹」打开�
 烧录成功后串口日志应包含：
 
 ```text
-I (xxx) Main: MIPI DSI PHY Powered on
-I (xxx) co6300_mipi: LCD ID: xx xx xx
+I (xxx) Main: Initialize I2C bus
 I (xxx) Main: Scanning I2C bus...
 I (xxx) Main: Found I2C device at address 0x58
 I (xxx) Main: Initialize touch controller
+I (xxx) Main: MIPI DSI PHY Powered on
+I (xxx) co6300_mipi: LCD ID: 33 12 00
+I (xxx) LVGL: Starting LVGL task
 ```
+
+`LCD ID: 33 12 00` 是厂商初始化序列写入的 ID code（`FE 40 / D8 33 / D9 12 / DA 00`）。日志停在 `esp_lcd_new_panel_io_dbi!` 之后、随后反复出现 `task_wdt`，说明面板没有应答 DSI 读，见[常见问题](#常见问题)。
 
 ## 工程结构
 
@@ -136,7 +175,7 @@ esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/
 | `CONFIG_LV_FONT_MONTSERRAT_8` … `_44` | y | 演示所需字体 |
 | `CONFIG_LV_USE_DEMO_BENCHMARK` / `_STRESS` / `_MUSIC` | y | 可在 `app_main()` 中切换 `lv_demo_widgets()` / `lv_demo_music()` |
 
-`main.c` 顶部的宏可调整引脚、DSI 速率、DPI 时序与 LVGL 绘制缓冲高度（`LCD_DRAW_BUFF_HEIGHT`，默认 120 行，双缓冲）。
+引脚由 menuconfig 的 *Example Configuration (AM319M262928ZS bring-up)* 菜单配置（`CONFIG_EXAMPLE_PIN_NUM_*`，见[硬件连接](#硬件连接)）；`main.c` 顶部的宏可调整 DSI 速率、DPI 时序与 LVGL 绘制缓冲高度（`LCD_DRAW_BUFF_HEIGHT`，默认 120 行，双缓冲）。
 
 ## 版本兼容性
 
@@ -209,8 +248,12 @@ LVGL 从 9.3 升到 9.5 时唯一需要的改动是关闭 `CONFIG_LV_ATTRIBUTE_F
 | ---- | ---- |
 | `ERROR: Version solving failed ... idf` | 当前 IDF 版本不在支持范围内，参见[版本兼容性](#版本兼容性) |
 | 首次编译时下载组件失败 | 需要能访问 `components.espressif.com`；网络恢复后重新执行 `idf.py reconfigure` |
-| 日志出现 `read ID failed`，或 `LCD ID` 全为 `00` / `FF` | 检查 VCI_EN（GPIO22）、LCD RST（GPIO6）与 MIPI 排线，确认转接板供电 |
-| I2C 扫描未发现 `0x58` | 检查 TP RST（GPIO16）/ INT（GPIO17）与上拉；CST3530 需 RST 释放后才会应答 |
+| 日志停在 `esp_lcd_new_panel_io_dbi!` 之后，随后每 5 s 一次 `task_wdt: ... CPU 0: main` | 面板对 DSI 读 ID 没有应答，而 IDF 的 `mipi_dsi_hal_host_gen_read_short_packet` 等待读 FIFO 的循环没有超时，主任务卡死。原因几乎都是上电 / 复位时序：LCD_RST、VCI_EN 没接线（只靠转接板 RC 复位不够）、排线反插或未插紧。接好三根线（见[硬件连接](#硬件连接)）再试 |
+| 日志出现 `read ID failed`，或 `LCD ID` 不是 `33 12 00` | 检查 VCI_EN、LCD RST 接线与 menuconfig 里的引脚号，确认转接板供电 |
+| I2C 扫描未发现 `0x58` | 检查排线（11 / 12 脚走触摸 I2C）与 3V3；若接了 TP_RST 线，核对其引脚配置；CST3530 需 RST 释放后才会应答 |
+| I2C 扫描到 `0x18` | 底板上的 ES8311 音频编解码与触摸共用 I2C，正常 |
+| 屏幕正常但触摸完全无响应 | `CONFIG_EXAMPLE_PIN_NUM_TOUCH_INT` 配了引脚但该线没接（或接错）：`esp_lvgl_port` 在配置了 INT 时改为事件模式，只在中断到来时读触摸。不接 INT 就设为 -1 改回轮询 |
+| `gpio: conflict found for GPIO[n]`（n 为 TP_RST 脚） | 示例先在 `app_touch_init()` 里手动释放 TP_RST，触摸驱动创建时又对同一脚 `gpio_config` 一次，IDF 6 对重复配置的提示，无害 |
 | 屏幕正常但触摸方向不对 | 调整 `app_touch_init()` 中 `tp_cfg.flags` 的 `swap_xy` / `mirror_x` / `mirror_y` |
 | 链接时出现大量 `--enable-non-contiguous-regions discards section` 错误，最后 `ld terminated with signal 11` | IRAM 溢出。多半是打开了 `CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM`：LVGL 9.5 会往 IRAM 放约 117 KB 混合函数，而 P4 可执行 SRAM 仅约 175 KB。保持该项关闭；若确需 IRAM 加速，先在 LVGL 配置中关闭用不到的 `CONFIG_LV_DRAW_SW_SUPPORT_*` 色彩格式 |
 

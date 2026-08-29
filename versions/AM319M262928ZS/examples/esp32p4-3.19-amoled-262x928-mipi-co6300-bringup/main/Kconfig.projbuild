@@ -1,0 +1,33 @@
+menu "Example Configuration (AM319M262928ZS bring-up)"
+
+    config EXAMPLE_PIN_NUM_LCD_RST
+        int "LCD RST GPIO (-1 = not wired, use DCS software reset)"
+        range -1 54
+        default 6
+
+    config EXAMPLE_PIN_NUM_LCD_VCI_EN
+        int "LCD VCI_EN GPIO (-1 = not wired, adapter pull-up keeps the panel powered)"
+        range -1 54
+        default 22
+
+    config EXAMPLE_PIN_NUM_TOUCH_SDA
+        int "Touch I2C SDA GPIO"
+        range 0 54
+        default 7
+
+    config EXAMPLE_PIN_NUM_TOUCH_SCL
+        int "Touch I2C SCL GPIO"
+        range 0 54
+        default 8
+
+    config EXAMPLE_PIN_NUM_TOUCH_RST
+        int "Touch RST GPIO (-1 = not wired, adapter RC releases it)"
+        range -1 54
+        default -1
+
+    config EXAMPLE_PIN_NUM_TOUCH_INT
+        int "Touch INT GPIO (-1 = not wired, touch is polled; when set, esp_lvgl_port reads only on INT edges)"
+        range -1 54
+        default -1
+
+endmenu
