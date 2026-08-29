@@ -75,7 +75,8 @@ Current module version: **AM319M262928ZS**. Electrical and mechanical details fo
 
 | Resource | PDF | Markdown ([MinerU conversion](./docs/markdown/)) |
 | -------- | --- | --- |
-| Product datasheet (AM319M262928ZS) | [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf) | [`docs/markdown/AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md`](./docs/markdown/AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md) |
+| Module specification (AM319M262928ZS, 25 pages: electrical / optical / FPC / timing / power sequence / init code) | [`docs/AM319M262928ZS.pdf`](./docs/AM319M262928ZS.pdf) | [`docs/markdown/AM319M262928ZS/AM319M262928ZS.md`](./docs/markdown/AM319M262928ZS/AM319M262928ZS.md) |
+| Product drawing (outline and pins, 1 page) | [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf) | [`docs/markdown/AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md`](./docs/markdown/AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md) |
 | Driver IC datasheet (CO6300) | [`docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf`](./docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf) | [`docs/markdown/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.md`](./docs/markdown/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.md) |
 | Touch IC datasheet (CST3530) | [`docs/CST_3530_V1_0_adb72690f0.pdf`](./docs/CST_3530_V1_0_adb72690f0.pdf) | [`docs/markdown/CST_3530_V1_0_adb72690f0/CST_3530_V1_0_adb72690f0.md`](./docs/markdown/CST_3530_V1_0_adb72690f0/CST_3530_V1_0_adb72690f0.md) |
 | Init sequence (text) | [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](./docs/AM319M262928ZS_CO6300_init_BOE3.19.txt) | — |

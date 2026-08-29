@@ -75,7 +75,8 @@ OSPTEK **3.19 寸 262×928 AMOLED** 是一款 **MIPI DSI** 接口彩色显示模
 
 | 资料 | PDF | Markdown（[MinerU 转换](./docs/markdown/)）|
 | ---- | --- | --- |
-| 产品规格书（AM319M262928ZS） | [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf) | [`docs/markdown/AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md`](./docs/markdown/AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md) |
+| 模组规格书（AM319M262928ZS，25 页：电气/光学/FPC/时序/上下电/初始化代码） | [`docs/AM319M262928ZS.pdf`](./docs/AM319M262928ZS.pdf) | [`docs/markdown/AM319M262928ZS/AM319M262928ZS.md`](./docs/markdown/AM319M262928ZS/AM319M262928ZS.md) |
+| 产品图纸（外形与引脚，1 页） | [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf) | [`docs/markdown/AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md`](./docs/markdown/AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md) |
 | 驱动 IC 数据手册（CO6300） | [`docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf`](./docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf) | [`docs/markdown/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.md`](./docs/markdown/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.md) |
 | 触摸 IC 数据手册（CST3530） | [`docs/CST_3530_V1_0_adb72690f0.pdf`](./docs/CST_3530_V1_0_adb72690f0.pdf) | [`docs/markdown/CST_3530_V1_0_adb72690f0/CST_3530_V1_0_adb72690f0.md`](./docs/markdown/CST_3530_V1_0_adb72690f0/CST_3530_V1_0_adb72690f0.md) |
 | 初始化序列（文本） | [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](./docs/AM319M262928ZS_CO6300_init_BOE3.19.txt) | — |

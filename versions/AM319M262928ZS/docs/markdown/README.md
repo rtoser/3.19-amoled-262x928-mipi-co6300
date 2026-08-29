@@ -4,7 +4,8 @@
 
 | 目录 | 来源 PDF | 页数 |
 | ---- | -------- | ---- |
-| [`AM_319_M262928_ZS_3a5effae7d/`](./AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md) | 产品规格书 `AM_319_M262928_ZS_3a5effae7d.pdf` | 1 |
+| [`AM319M262928ZS/`](./AM319M262928ZS/AM319M262928ZS.md) | **模组完整规格书** `AM319M262928ZS.pdf`（电气/光学参数、FPC 定义、MIPI 时序、上下电序列、官方初始化代码、可靠性） | 25 |
+| [`AM_319_M262928_ZS_3a5effae7d/`](./AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md) | 产品图纸（外形 / 引脚一页） `AM_319_M262928_ZS_3a5effae7d.pdf` | 1 |
 | [`CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d/`](./CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.md) | 驱动 IC 数据手册 `CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf` | 243 |
 | [`CST_3530_V1_0_adb72690f0/`](./CST_3530_V1_0_adb72690f0/CST_3530_V1_0_adb72690f0.md) | 触摸 IC 数据手册 `CST_3530_V1_0_adb72690f0.pdf` | 12 |
 | [`3.19寸262x928 AMOLED转接板/`](./3.19%E5%AF%B8262x928%20AMOLED%E8%BD%AC%E6%8E%A5%E6%9D%BF/3.19%E5%AF%B8262x928%20AMOLED%E8%BD%AC%E6%8E%A5%E6%9D%BF.md) | 转接板原理图 `3.19寸262x928 AMOLED转接板.pdf` | 2 |
