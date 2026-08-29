@@ -195,7 +195,9 @@ esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/
 | Widgets demo | 29 FPS，渲染 21 ms | 22 FPS，渲染 20 ms |
 | 全部场景平均 | 46 FPS | **49 FPS** |
 
-直写 PSRAM 比内部 SRAM 慢，重场景的渲染时间多 3–5 ms；文字密集的场景是 CPU 瓶颈（字形混合全在 CPU 上，PPA 只加速不透明填充和图片）。想回到局部刷新模式：`num_fbs = 1`、`buffer_size` 改为 `MIPI_DSI_LCD_H_RES * 120`、去掉 `direct_mode`、`avoid_tearing = false`。
+直写 PSRAM 比内部 SRAM 慢，重场景的渲染时间多 3–5 ms；文字密集的场景是 CPU 瓶颈（字形混合全在 CPU 上，PPA 只加速不透明填充和图片）。PPA 也帮不上忙：同一 benchmark 打开 `LV_USE_PPA` + `LV_USE_PPA_IMG`（`LV_DRAW_BUF_ALIGN=128`）后平均 48 FPS、逐场景与不开时相同——LVGL 的 PPA 绘制单元只接管不透明、无圆角、无渐变的填充和图片，这些场景的时间都花在文字和带透明度/圆角的填充上，所以示例不启用它。CPU 频率也没有余量可挖：IDF 6.1 只允许 ESP32-P4 **rev ≥ 3.0** 跑 400 MHz（`ESP32P4_SELECTS_REV_LESS_V3` 选中 0.x / 1.x 时上限 360 MHz），本底板的核心板是 rev v1.3，强行选 400 MHz 会在 `esp_clk_init` 断言重启。
+
+**双绘制线程**（`CONFIG_LV_OS_FREERTOS=y` + `CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=2`，Espressif 对 P4 的推荐配置）是目前唯一有效的算力杠杆：同一 benchmark 的前 41 s（按 sysmon 每 340 ms 采样对齐），重帧渲染时间从 p90 21 ms / 最大 22 ms 降到 p90 15 ms / 最大 16 ms，处于 30 FPS（VSYNC 减半）的时间占比从 25% 降到 13%，平均 FPS 51.6 → 54.7；FreeRTOS run-time stats 显示负载被分到两个核（core 0 约 35%、core 1 约 48%，单线程时 core 0 达 88%）。**但它在 benchmark 收尾（整屏删除对象）时必现活锁**——LVGL 任务在 `lv_thread_sync` / 互斥量 give-take 之间自旋、IDLE1 饿死触发看门狗，`LV_USE_FREERTOS_TASK_NOTIFY` 开关两种实现都一样；跑 `lv_demo_widgets` 数分钟未复现。因此示例默认仍是单线程；要用双线程，先在 LVGL ≥ 9.6（同步原语已重写）或 Espressif 的 [esp_lvgl_adapter](https://components.espressif.com/components/espressif/esp_lvgl_adapter)（明确推荐 P4 用 2 个绘制单元，并自带 `TRIPLE_PARTIAL` 三缓冲局部渲染防撕裂模式）上复验。想回到局部刷新模式：`num_fbs = 1`、`buffer_size` 改为 `MIPI_DSI_LCD_H_RES * 120`、去掉 `direct_mode`、`avoid_tearing = false`。
 
 ## 触摸驱动的健壮性
 
