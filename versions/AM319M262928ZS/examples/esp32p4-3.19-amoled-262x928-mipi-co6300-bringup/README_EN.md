@@ -77,7 +77,7 @@ The committed `sdkconfig` is set up for "V1.3 base board with the TP lines wired
 
 Notes for the V1.3 base board: GPIO14–19 form the SDIO bus between the P4 and the wireless co-processor (C5 / C6) and are not on the headers, so TP_RST / TP_INT must **not** be set to 16 / 17 (INT never fires, so touch stays dead); the touch I2C bus also carries the base board's ES8311 audio codec (`0x18`), so seeing it in the scan is normal; GPIO20 enables the SY7200 backlight boost, which an AMOLED does not need — leave it alone.
 
-DPI timing: 262 × 928, HSYNC 4 / HBP 32 / HFP 32, VSYNC 4 / VBP 8 / VFP 8, 16 MHz pixel clock (about 51 Hz).
+DPI timing: 262 × 928, HSYNC 4 / HBP 32 / HFP 32, VSYNC 4 / VBP 8 / VFP 70, 20 MHz pixel clock (PLL_F240M ÷ 12), i.e. 20 000 000 ÷ (330 × 1010) = **60.01 Hz**, inside the datasheet's F_frm window of 58.2–61.8 Hz at 25 °C. Earlier revisions used 16 MHz / VFP 8, which is only 51 Hz — below the panel's minimum. LVGL refreshes every `CONFIG_LV_DEF_REFR_PERIOD=16` ms and `CONFIG_LV_USE_PERF_MONITOR` overlays an FPS / CPU indicator in the bottom-right corner.
 
 The module requires an ESP32-P4 with PSRAM (the example is configured for 16 MB flash and 200 MHz PSRAM). The adapter board schematic is in [`docs/3.19寸262x928 AMOLED转接板.pdf`](../../docs/3.19%E5%AF%B8262x928%20AMOLED%E8%BD%AC%E6%8E%A5%E6%9D%BF.pdf); a photo of the bring-up setup is in [`assets/adapter-board-demo.jpg`](../../assets/adapter-board-demo.jpg).
 

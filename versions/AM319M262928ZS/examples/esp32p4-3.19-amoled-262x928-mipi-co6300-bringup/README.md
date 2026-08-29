@@ -77,7 +77,7 @@
 
 V1.3 底板注意：GPIO14–19 是 P4 与无线协处理器（C5 / C6）之间的 SDIO 总线，排针没有引出，**不能**把 TP_RST / TP_INT 配成 16 / 17（INT 永远不会触发，触摸无响应）；触摸 I2C 总线上还挂着底板的 ES8311 音频编解码（`0x18`），扫描到它是正常的；GPIO20 是 SY7200 背光升压的使能，AMOLED 没有背光，不要拉高。
 
-DPI 时序：262 × 928，HSYNC 4 / HBP 32 / HFP 32，VSYNC 4 / VBP 8 / VFP 8，像素时钟 16 MHz（刷新率约 51 Hz）。
+DPI 时序：262 × 928，HSYNC 4 / HBP 32 / HFP 32，VSYNC 4 / VBP 8 / VFP 70，像素时钟 20 MHz（PLL_F240M ÷ 12），刷新率 20 000 000 ÷ (330 × 1010) = **60.01 Hz**，落在规格书 F_frm 25 ℃ 58.2–61.8 Hz 的窗口内。早期版本用 16 MHz / VFP 8 只有 51 Hz，低于规格下限。LVGL 刷新周期 `CONFIG_LV_DEF_REFR_PERIOD=16` ms，屏幕右下角由 `CONFIG_LV_USE_PERF_MONITOR` 叠加 FPS / CPU 指示。
 
 主控需带 PSRAM（示例按 16 MB Flash、PSRAM 200 MHz 配置）。转接板原理图见 [`docs/3.19寸262x928 AMOLED转接板.pdf`](../../docs/3.19%E5%AF%B8262x928%20AMOLED%E8%BD%AC%E6%8E%A5%E6%9D%BF.pdf)，联调实拍见 [`assets/adapter-board-demo.jpg`](../../assets/adapter-board-demo.jpg)。
 

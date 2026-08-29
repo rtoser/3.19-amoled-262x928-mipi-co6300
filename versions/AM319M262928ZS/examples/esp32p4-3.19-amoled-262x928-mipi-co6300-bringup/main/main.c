@@ -31,7 +31,9 @@
 
 static const char *TAG = "Main";
 
-#define MIPI_DSI_DPI_CLK_MHZ 16
+/* DPI 时钟源为 PLL_F240M，整数分频：240/12 = 20 MHz。刷新率 = 20e6 / (330 × 1010) = 60.01 Hz，
+ * 落在规格书 F_frm 58.2–61.8 Hz 窗口内（16 MHz 时只有 51.1 Hz，低于规格下限）。 */
+#define MIPI_DSI_DPI_CLK_MHZ 20
 
 #define MIPI_DSI_LCD_H_RES 262
 #define MIPI_DSI_LCD_V_RES 928
@@ -41,7 +43,7 @@ static const char *TAG = "Main";
 #define MIPI_DSI_LCD_HFP 32
 #define MIPI_DSI_LCD_VSYNC 4
 #define MIPI_DSI_LCD_VBP 8
-#define MIPI_DSI_LCD_VFP 8
+#define MIPI_DSI_LCD_VFP 70  /* 拉长前沿消隐把帧率凑到 60 Hz；VSYNC/VBP 与 GOA 时序绑定，不动 */
 
 #define TEST_MIPI_DSI_PHY_PWR_LDO_CHAN 3
 #define TEST_MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV 2500
@@ -261,7 +263,7 @@ esp_err_t app_lvgl_init() {
         .task_stack = 4096 * 2,  /* LVGL task stack size */
         .task_affinity = -1,     /* LVGL task pinned to core (-1 is no affinity) */
         .task_max_sleep_ms = 500,
-        .timer_period_ms = 5
+        .timer_period_ms = 1     /* LVGL 时基 1 ms；5 ms 会把 16 ms 的刷新周期量化成 20 ms（50 FPS） */
     };
     ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_cfg), TAG, "LVGL port initialization failed");
 
