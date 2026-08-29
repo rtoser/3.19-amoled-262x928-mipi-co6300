@@ -73,14 +73,14 @@ OSPTEK **3.19 寸 262×928 AMOLED** 是一款 **MIPI DSI** 接口彩色显示模
 
 ### 本产品资料
 
-| 资料 | 链接 |
-| ---- | ---- |
-| 产品规格书（AM319M262928ZS） | [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf) |
-| 驱动 IC 数据手册（CO6300） | [`docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf`](./docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf) |
-| 触摸 IC 数据手册（CST3530） | [`docs/CST_3530_V1_0_adb72690f0.pdf`](./docs/CST_3530_V1_0_adb72690f0.pdf) |
-| 初始化序列（文本） | [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](./docs/AM319M262928ZS_CO6300_init_BOE3.19.txt) |
-| 转接板原理图 | [`docs/3.19寸262x928 AMOLED转接板.pdf`](./docs/3.19%E5%AF%B8262x928%20AMOLED%E8%BD%AC%E6%8E%A5%E6%9D%BF.pdf) |
-| 转接板联调实拍 | [`assets/adapter-board-demo.jpg`](./assets/adapter-board-demo.jpg) |
+| 资料 | PDF | Markdown（[MinerU 转换](./docs/markdown/)）|
+| ---- | --- | --- |
+| 产品规格书（AM319M262928ZS） | [`docs/AM_319_M262928_ZS_3a5effae7d.pdf`](./docs/AM_319_M262928_ZS_3a5effae7d.pdf) | [`docs/markdown/AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md`](./docs/markdown/AM_319_M262928_ZS_3a5effae7d/AM_319_M262928_ZS_3a5effae7d.md) |
+| 驱动 IC 数据手册（CO6300） | [`docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf`](./docs/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.pdf) | [`docs/markdown/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.md`](./docs/markdown/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d/CO_6300_Datasheet_V0_00_20240827_for_customer_d6da76ca4d.md) |
+| 触摸 IC 数据手册（CST3530） | [`docs/CST_3530_V1_0_adb72690f0.pdf`](./docs/CST_3530_V1_0_adb72690f0.pdf) | [`docs/markdown/CST_3530_V1_0_adb72690f0/CST_3530_V1_0_adb72690f0.md`](./docs/markdown/CST_3530_V1_0_adb72690f0/CST_3530_V1_0_adb72690f0.md) |
+| 初始化序列（文本） | [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](./docs/AM319M262928ZS_CO6300_init_BOE3.19.txt) | — |
+| 转接板原理图 | [`docs/3.19寸262x928 AMOLED转接板.pdf`](./docs/3.19%E5%AF%B8262x928%20AMOLED%E8%BD%AC%E6%8E%A5%E6%9D%BF.pdf) | [`docs/markdown/3.19寸262x928 AMOLED转接板/3.19寸262x928 AMOLED转接板.md`](./docs/markdown/3.19%E5%AF%B8262x928%20AMOLED%E8%BD%AC%E6%8E%A5%E6%9D%BF/3.19%E5%AF%B8262x928%20AMOLED%E8%BD%AC%E6%8E%A5%E6%9D%BF.md) |
+| 转接板联调实拍 | [`assets/adapter-board-demo.jpg`](./assets/adapter-board-demo.jpg) | — |
 
 ### 示例工程
 
