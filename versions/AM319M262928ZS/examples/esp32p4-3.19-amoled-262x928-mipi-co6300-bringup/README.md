@@ -14,6 +14,8 @@
 - [编译与烧录](#编译与烧录)
 - [工程结构](#工程结构)
 - [配置说明](#配置说明)
+- [渲染模式](#渲染模式)
+- [触摸驱动的健壮性](#触摸驱动的健壮性)
 - [版本兼容性](#版本兼容性)
 - [迁移说明](#迁移说明)
 - [常见问题](#常见问题)
@@ -28,7 +30,7 @@
 2. 初始化 I2C（400 kHz）并扫描总线，创建 CST3530 触摸驱动——放在 DSI 之前：能扫到 `0x58` 就说明排线、3V3 与触摸复位都正常；
 3. 打开 MIPI DSI PHY 的 LDO（通道 3，2.5 V），创建 1 data lane / 360 Mbps 的 DSI 总线；
 4. 硬件复位面板、读取 ID（`RDDID 04h`，本模组为 `33 12 00`），通过 DBI IO 发送 CO6300 初始化序列（`main.c` 中的 `lcd_init_cmds[]`，对应 [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](../../docs/AM319M262928ZS_CO6300_init_BOE3.19.txt)），创建 RGB565 DPI 面板并启用 DMA2D；
-5. 通过 `esp_lvgl_port` 注册显示与触摸，启动 LVGL 演示。
+5. 通过 `esp_lvgl_port` 注册显示与触摸（VSYNC 同步的 direct mode，见[渲染模式](#渲染模式)），启动 LVGL 演示。
 
 ## 硬件连接
 
@@ -175,7 +177,40 @@ esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/
 | `CONFIG_LV_FONT_MONTSERRAT_8` … `_44` | y | 演示所需字体 |
 | `CONFIG_LV_USE_DEMO_BENCHMARK` / `_STRESS` / `_MUSIC` | y | 可在 `app_main()` 中切换 `lv_demo_widgets()` / `lv_demo_music()` |
 
-引脚由 menuconfig 的 *Example Configuration (AM319M262928ZS bring-up)* 菜单配置（`CONFIG_EXAMPLE_PIN_NUM_*`，见[硬件连接](#硬件连接)）；`main.c` 顶部的宏可调整 DSI 速率、DPI 时序与 LVGL 绘制缓冲高度（`LCD_DRAW_BUFF_HEIGHT`，默认 120 行，双缓冲）。
+引脚由 menuconfig 的 *Example Configuration (AM319M262928ZS bring-up)* 菜单配置（`CONFIG_EXAMPLE_PIN_NUM_*`，见[硬件连接](#硬件连接)）；`main.c` 顶部的宏可调整 DSI 速率与 DPI 时序。
+
+## 渲染模式
+
+示例使用 esp_lvgl_port 的 **VSYNC 同步 direct mode**：DPI 面板分配 2 幅 PSRAM 帧缓冲（`num_fbs = 2`，各 262 × 928 × 2 B = 486 KB），LVGL 直接在其中绘制（`buffer_size` 为整屏、`flags.direct_mode = 1`），`avoid_tearing = 1` 让 flush 等到 DSI 发完当前帧（`on_frame_buf_complete`）再切换帧缓冲。效果是画面永远是完整帧、刷新率锁定在面板的 60 Hz；代价是 LVGL 任务在等 VSYNC 时阻塞（叠加层里的 CPU% 会把这段等待算成忙碌，真实开销看渲染时间），以及一帧渲染超过 16.7 ms 时掉到 30 FPS（VSYNC 减半）。
+
+2026-08-29 在 V1.3 底板上用 `lv_demo_benchmark`（`CONFIG_LV_USE_DEMO_BENCHMARK`，在 `app_main()` 里替换 `lv_demo_widgets()` 即可运行）对比两种模式（均为 60 Hz 时序、16 ms 刷新周期、1 ms tick）：
+
+| 场景 | 局部刷新（120 行 SRAM 双缓冲 + DMA2D 拷贝，无 VSYNC） | **direct mode + VSYNC（当前默认）** |
+| ---- | ---- | ---- |
+| Empty / rectangles / images / arcs / labels / containers | 50 FPS（5 ms tick 量化所致） | **59–60 FPS** |
+| Rotated ARGB images | 50 FPS，渲染 10 ms | 32 FPS，渲染 15 ms |
+| Screen sized text | 25 FPS，渲染 37 ms | 30 FPS，渲染 20 ms |
+| Containers with overlay | 46 FPS，渲染 19 ms | 30 FPS，渲染 22 ms |
+| Containers with scrolling | 49 FPS，渲染 15 ms | 30 FPS，渲染 18 ms |
+| Widgets demo | 29 FPS，渲染 21 ms | 22 FPS，渲染 20 ms |
+| 全部场景平均 | 46 FPS | **49 FPS** |
+
+直写 PSRAM 比内部 SRAM 慢，重场景的渲染时间多 3–5 ms；文字密集的场景是 CPU 瓶颈（字形混合全在 CPU 上，PPA 只加速不透明填充和图片）。想回到局部刷新模式：`num_fbs = 1`、`buffer_size` 改为 `MIPI_DSI_LCD_H_RES * 120`、去掉 `direct_mode`、`avoid_tearing = false`。
+
+## 触摸驱动的健壮性
+
+2026-08-29 在 V1.3 底板上快速拖动界面时复现了两种故障，根因相同——触摸 I2C 总线在高频读取下偶发 NACK：
+
+- **卡死**：`esp_lcd_panel_io_i2c_config_t.transaction_timeout_ms` 未设置即为「永远等」，从机拉死总线时 `i2c_master_transmit` 无限阻塞，LVGL 任务停在触摸读取里（显示 DMA 仍在刷，所以画面定格而非黑屏）。
+- **重启**：`esp_lcd_touch_read_data()` 返回错误时 esp_lvgl_port 用 `ESP_ERROR_CHECK` 直接 `abort()`。
+
+`components/esp_lcd_touch_cst3530` 现在的做法：
+
+1. I2C 事务超时 20 ms（`ESP_LCD_TOUCH_IO_I2C_CST3530_CONFIG()`）。
+2. 读取失败不上抛：上报 0 个触点，记入 `esp_lcd_touch_cst3530_get_stats()` 的计数；连续 3 次失败后 `i2c_master_bus_reset()`（9 个 SCL 脉冲释放被拉死的 SDA）+ 触摸芯片复位，需要应用先调用 `esp_lcd_touch_cst3530_set_i2c_bus()` 注册总线。
+3. 报文协议对齐海栅官方驱动（[viewesmart/esp_lcd_touch_cst3530](https://components.espressif.com/components/viewesmart/esp_lcd_touch_cst3530) 内嵌的 `hyn_cst66xx.c`）：只读 4 字节头 + 每指 5 字节而不是固定 64 字节（总线占用降到约 1/7），校验 16 位和（`0x55 + Σ数据`）并最多重试 2 次，忽略 `event == 0` 的抬起包，复位后写入 normal-mode 序列（`0xD0000400` ×2 关闭芯片内部低功耗 I2C 上拉，再 `0xD0000000 / 0xD0000C00 / 0xD0000100`），复位脉冲 10 ms + 200 ms（TPON）。
+
+实测：加固后 135 s 连续拖动出现 10 次孤立 NACK，无连续失败、无卡死、无重启；再换用官方报文协议后，150 s 同样强度的拖动 **0 次 I2C 错误**。
 
 ## 版本兼容性
 
@@ -255,6 +290,8 @@ LVGL 从 9.3 升到 9.5 时唯一需要的改动是关闭 `CONFIG_LV_ATTRIBUTE_F
 | 屏幕正常但触摸完全无响应 | `CONFIG_EXAMPLE_PIN_NUM_TOUCH_INT` 配了引脚但该线没接（或接错）：`esp_lvgl_port` 在配置了 INT 时改为事件模式，只在中断到来时读触摸。不接 INT 就设为 -1 改回轮询 |
 | `gpio: conflict found for GPIO[n]`（n 为 TP_RST 脚） | 示例先在 `app_touch_init()` 里手动释放 TP_RST，触摸驱动创建时又对同一脚 `gpio_config` 一次，IDF 6 对重复配置的提示，无害 |
 | 屏幕正常但触摸方向不对 | 调整 `app_touch_init()` 中 `tp_cfg.flags` 的 `swap_xy` / `mirror_x` / `mirror_y` |
+| 日志偶尔出现 `CST3530: report read failed (ESP_ERR_INVALID_RESPONSE …)` | 触摸 I2C 单次失败，驱动按「无触摸」处理并继续；连续 3 次才会做一次总线复位 + 触摸芯片复位（日志 `recovery #n`，约 210 ms）。频繁出现请检查排线 11/12 脚与上拉；本模组的触摸 I2C 为 1.8 V 电平而转接板/底板上拉到 3.3 V，属于硬件层的已知风险 |
+| 拖动界面后触摸失效 / 整机重启（旧版本） | 见[触摸驱动的健壮性](#触摸驱动的健壮性)；当前版本已修复 |
 | 链接时出现大量 `--enable-non-contiguous-regions discards section` 错误，最后 `ld terminated with signal 11` | IRAM 溢出。多半是打开了 `CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM`：LVGL 9.5 会往 IRAM 放约 117 KB 混合函数，而 P4 可执行 SRAM 仅约 175 KB。保持该项关闭；若确需 IRAM 加速，先在 LVGL 配置中关闭用不到的 `CONFIG_LV_DRAW_SW_SUPPORT_*` 色彩格式 |
 
 ---

@@ -14,6 +14,8 @@
 - [Build and flash](#build-and-flash)
 - [Project layout](#project-layout)
 - [Configuration](#configuration)
+- [Rendering mode](#rendering-mode)
+- [Touch driver robustness](#touch-driver-robustness)
 - [Version compatibility](#version-compatibility)
 - [Migration notes](#migration-notes)
 - [Troubleshooting](#troubleshooting)
@@ -28,7 +30,7 @@ On an ESP32-P4 the example runs through the following steps and ends in LVGL 9's
 2. Brings up I2C (400 kHz), scans the bus and creates the CST3530 touch driver — deliberately before DSI: seeing `0x58` proves the flex cable, 3V3 and the touch reset are fine;
 3. Enables the MIPI DSI PHY LDO (channel 3, 2.5 V) and creates a 1-data-lane / 360 Mbps DSI bus;
 4. Hardware-resets the panel, reads its ID (`RDDID 04h`, `33 12 00` for this module), sends the CO6300 init sequence over the DBI IO (`lcd_init_cmds[]` in `main.c`, matching [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](../../docs/AM319M262928ZS_CO6300_init_BOE3.19.txt)), creates an RGB565 DPI panel and enables DMA2D;
-5. Registers display and touch with `esp_lvgl_port` and starts the LVGL demo.
+5. Registers display and touch with `esp_lvgl_port` (VSYNC-paced direct mode, see [Rendering mode](#rendering-mode)) and starts the LVGL demo.
 
 ## Wiring
 
@@ -175,7 +177,40 @@ Key entries in `sdkconfig.defaults`:
 | `CONFIG_LV_FONT_MONTSERRAT_8` … `_44` | y | Fonts used by the demos |
 | `CONFIG_LV_USE_DEMO_BENCHMARK` / `_STRESS` / `_MUSIC` | y | Switch between `lv_demo_widgets()` / `lv_demo_music()` in `app_main()` |
 
-Pins are configured in the menuconfig menu *Example Configuration (AM319M262928ZS bring-up)* (`CONFIG_EXAMPLE_PIN_NUM_*`, see [Wiring](#wiring)); the macros at the top of `main.c` set the DSI lane rate, the DPI timing and the LVGL draw-buffer height (`LCD_DRAW_BUFF_HEIGHT`, 120 lines by default, double-buffered).
+Pins are configured in the menuconfig menu *Example Configuration (AM319M262928ZS bring-up)* (`CONFIG_EXAMPLE_PIN_NUM_*`, see [Wiring](#wiring)); the macros at the top of `main.c` set the DSI lane rate and the DPI timing.
+
+## Rendering mode
+
+The example uses esp_lvgl_port's **VSYNC-paced direct mode**: the DPI panel allocates two PSRAM frame buffers (`num_fbs = 2`, 262 × 928 × 2 B = 486 KB each), LVGL renders straight into them (`buffer_size` = full screen, `flags.direct_mode = 1`), and `avoid_tearing = 1` makes each flush wait until DSI has finished sending the current frame (`on_frame_buf_complete`) before switching buffers. The panel therefore always shows a complete frame and the refresh rate is locked to its 60 Hz; the costs are that the LVGL task blocks while waiting for VSYNC (the overlay's CPU% counts that wait as busy — look at the render time instead) and that any frame taking longer than 16.7 ms to render drops to 30 FPS (VSYNC halving).
+
+Measured on 2026-08-29 on the V1.3 base board with `lv_demo_benchmark` (`CONFIG_LV_USE_DEMO_BENCHMARK`; swap it for `lv_demo_widgets()` in `app_main()` to run it), both modes at the 60 Hz timing, 16 ms refresh period and 1 ms tick:
+
+| Scene | Partial mode (120-line SRAM double buffer + DMA2D copy, no VSYNC) | **Direct mode + VSYNC (current default)** |
+| ----- | ---- | ---- |
+| Empty / rectangles / images / arcs / labels / containers | 50 FPS (quantised by the old 5 ms tick) | **59–60 FPS** |
+| Rotated ARGB images | 50 FPS, render 10 ms | 32 FPS, render 15 ms |
+| Screen sized text | 25 FPS, render 37 ms | 30 FPS, render 20 ms |
+| Containers with overlay | 46 FPS, render 19 ms | 30 FPS, render 22 ms |
+| Containers with scrolling | 49 FPS, render 15 ms | 30 FPS, render 18 ms |
+| Widgets demo | 29 FPS, render 21 ms | 22 FPS, render 20 ms |
+| All scenes average | 46 FPS | **49 FPS** |
+
+Rendering into PSRAM is slower than into internal SRAM, so heavy scenes cost 3–5 ms more; text-heavy scenes are CPU-bound (glyph blending is all CPU work — the PPA only accelerates opaque fills and images). To go back to partial mode: `num_fbs = 1`, `buffer_size = MIPI_DSI_LCD_H_RES * 120`, drop `direct_mode`, `avoid_tearing = false`.
+
+## Touch driver robustness
+
+On 2026-08-29, dragging the UI quickly on the V1.3 base board reproduced two failures with one root cause: the touch I2C bus occasionally NACKs under a high read rate.
+
+- **Freeze**: `esp_lcd_panel_io_i2c_config_t.transaction_timeout_ms` left unset means wait forever; when the slave held the bus, `i2c_master_transmit` blocked and the LVGL task stayed inside the touch read (the display DMA keeps refreshing, so the picture froze instead of going black).
+- **Reboot**: esp_lvgl_port wraps `esp_lcd_touch_read_data()` in `ESP_ERROR_CHECK`, so any returned error is an `abort()`.
+
+`components/esp_lcd_touch_cst3530` now:
+
+1. Uses a 20 ms I2C transaction timeout (`ESP_LCD_TOUCH_IO_I2C_CST3530_CONFIG()`).
+2. Never propagates a read failure: it reports zero points, counts the failure (`esp_lcd_touch_cst3530_get_stats()`), and after three consecutive failures runs `i2c_master_bus_reset()` (nine SCL pulses free a stuck SDA) plus a controller reset; the application registers the bus with `esp_lcd_touch_cst3530_set_i2c_bus()`.
+3. Follows the Hynitron reference protocol (the `hyn_cst66xx.c` layer embedded in [viewesmart/esp_lcd_touch_cst3530](https://components.espressif.com/components/viewesmart/esp_lcd_touch_cst3530)): read the 4-byte header plus 5 bytes per finger instead of a blind 64 bytes (about 1/7 of the bus time), verify the 16-bit checksum (`0x55 + sum of data`) with up to two retries, ignore `event == 0` lift packets, and after every reset write the normal-mode sequence (`0xD0000400` twice to disable the controller's low-power I2C pull-up, then `0xD0000000 / 0xD0000C00 / 0xD0000100`); the reset pulse is 10 ms followed by the 200 ms TPON wait.
+
+Measured: with the hardening alone, 135 s of continuous dragging produced 10 isolated NACKs, no consecutive failures, no freeze, no reboot; with the reference protocol on top, 150 s of the same dragging produced **zero I2C errors**.
 
 ## Version compatibility
 
@@ -255,6 +290,8 @@ Other options are migrated by IDF 6.x automatically (for example `CONFIG_ESP_SYS
 | Display works but touch never responds | `CONFIG_EXAMPLE_PIN_NUM_TOUCH_INT` names a pin that is not wired (or wired elsewhere): with an INT pin configured, `esp_lvgl_port` switches to event mode and only reads the touch controller on interrupts. Set it to -1 to poll |
 | `gpio: conflict found for GPIO[n]` (n = the TP_RST pin) | `app_touch_init()` releases TP_RST by hand and the touch driver then runs `gpio_config` on the same pin again; IDF 6 flags the double configuration. Harmless |
 | Display works but touch is mirrored / rotated | Adjust `swap_xy` / `mirror_x` / `mirror_y` in `tp_cfg.flags` inside `app_touch_init()` |
+| Occasional `CST3530: report read failed (ESP_ERR_INVALID_RESPONSE …)` in the log | A single failed touch I2C transfer; the driver reports no touch and carries on. Only three consecutive failures trigger a bus reset + controller reset (`recovery #n`, ~210 ms). If it happens often, check flex-cable pins 11 / 12 and the pull-ups; note the module's touch I2C is a 1.8 V interface while the adapter and base board pull it up to 3.3 V — a known hardware-level risk |
+| Touch dies or the board reboots after dragging the UI (older revisions) | See [Touch driver robustness](#touch-driver-robustness); fixed in the current revision |
 | Linking prints many `--enable-non-contiguous-regions discards section` errors and ends with `ld terminated with signal 11` | IRAM overflow, usually because `CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM` was enabled: LVGL 9.5 places about 117 KB of blend code in IRAM while the P4's executable SRAM is only about 175 KB. Keep the option off; if you really need IRAM placement, first disable unused `CONFIG_LV_DRAW_SW_SUPPORT_*` colour formats in the LVGL configuration |
 
 ---

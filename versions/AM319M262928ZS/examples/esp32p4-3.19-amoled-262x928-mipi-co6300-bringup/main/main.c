@@ -60,8 +60,6 @@ static const char *TAG = "Main";
 
 #define TOUCH_HOST I2C_NUM_0
 
-#define LCD_DRAW_BUFF_HEIGHT (120)  // 降低缓冲区高度，节省内存
-
 static esp_lcd_panel_io_handle_t mipi_dbi_io = NULL;
 static esp_lcd_panel_handle_t mipi_dpi_panel = NULL;
 static i2c_master_bus_handle_t touch_i2c_bus = NULL;
@@ -152,7 +150,7 @@ esp_err_t app_lcd_init() {
         .dpi_clock_freq_mhz = MIPI_DSI_DPI_CLK_MHZ,
         .virtual_channel = 0,
         .in_color_format = LCD_COLOR_FMT_RGB565,
-        .num_fbs = 1,
+        .num_fbs = 2,
         .video_timing =
             {
                 .h_size = MIPI_DSI_LCD_H_RES,
@@ -254,7 +252,9 @@ esp_err_t app_touch_init() {
             },
     };
     ESP_LOGI(TAG, "Initialize touch controller");
-    return esp_lcd_touch_new_i2c_cst3530(tp_io_handle, &tp_cfg, &tp);
+    ESP_RETURN_ON_ERROR(esp_lcd_touch_new_i2c_cst3530(tp_io_handle, &tp_cfg, &tp), TAG, "touch init failed");
+    // 让驱动在连续 I2C 失败后能复位总线（9 个 SCL 脉冲）再复位触摸芯片
+    return esp_lcd_touch_cst3530_set_i2c_bus(tp, touch_i2c_bus);
 }
 
 esp_err_t app_lvgl_init() {
@@ -271,7 +271,7 @@ esp_err_t app_lvgl_init() {
     const lvgl_port_display_cfg_t disp_cfg = {
         .io_handle = mipi_dbi_io,
         .panel_handle = mipi_dpi_panel,
-        .buffer_size = MIPI_DSI_LCD_H_RES * LCD_DRAW_BUFF_HEIGHT,
+        .buffer_size = MIPI_DSI_LCD_H_RES * MIPI_DSI_LCD_V_RES,
         .double_buffer = true,
         .hres = MIPI_DSI_LCD_H_RES,
         .vres = MIPI_DSI_LCD_V_RES,
@@ -288,12 +288,13 @@ esp_err_t app_lvgl_init() {
                 .buff_dma = true,
                 .buff_spiram = false,
                 .swap_bytes = false,
+                .direct_mode = true,
             }
     };
     const lvgl_port_display_dsi_cfg_t dsi_cfg = {
         .flags =
             {
-                .avoid_tearing = false,
+                .avoid_tearing = true,
             },
     };
     lvgl_disp = lvgl_port_add_disp_dsi(&disp_cfg, &dsi_cfg);
