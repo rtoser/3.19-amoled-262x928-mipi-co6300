@@ -113,8 +113,14 @@ scratchpad（`bench-adapter-rot90-run{1,2}.log`），不入库。
 
 ## 6. 遗留与下一步
 
-- [ ] **人工画面/触摸门禁**：横屏画面方向、无花屏/撕裂需人眼确认；触摸坐标经
-      adapter 输入变换后的正确性未测（benchmark 不用触摸）。
+- [x] **人工画面门禁**：2026-08-30 用户确认横屏方向正确、无花屏/撕裂/错位。
+- [x] **触摸门禁**：首测失败——横滑变竖移。根因：esp_lvgl_adapter 的触摸输入层
+      只做线性缩放（`scale.x/y`），**不做旋转变换**；旋转必须由 `esp_lcd_touch`
+      的 `swap_xy/mirror_*` 标志承担（其软件路径先在物理坐标系 mirror、后 swap）。
+      由桥接层正向映射反解得各角度组合：**90° = `mirror_x`+`swap_xy`**，
+      180° = `mirror_x`+`mirror_y`，270° = `mirror_y`+`swap_xy`；已在触摸配置中按
+      `ADAPTER_ROTATION` 自动推导。2026-08-30 用户在横屏 widgets 上确认横滑/竖滑/
+      点按落点/四角全部正确——**横屏路线（渲染 + 触摸）整体判定为已验证可用**。
 - [ ] 真实 UI（时钟/表盘类）在横屏下的 motion FPS 实测，替代 benchmark 代理负载。
 - [ ] 若旋转成为瓶颈再评估：PPA NON_BLOCKING + 条带渲染重叠（time-center L0.4
       蓝图），或等 LVGL ≥9.6 的调度语义变化。
