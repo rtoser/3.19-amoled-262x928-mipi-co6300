@@ -19,6 +19,13 @@ CONFIG_SPI_FLASH_SUPPORT_GD_CHIP=n
 # LVGL 9.5 marks ~117 KB of sw-blend code as LV_ATTRIBUTE_FAST_MEM; that does not fit in IRAM next
 # to the system, so LVGL executes from PSRAM (XIP, 200 MHz) like Espressif's own ESP32-P4 LVGL examples.
 CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM=n
+# lv_malloc goes through the IDF heap (same TLSF allocator, but sized by the whole SRAM/PSRAM
+# instead of a fixed 64 KB pool). The 64 KB builtin pool overflows under real load on this
+# 262x928 panel and every failure mode ends in a hang on LVGL 9.5 (see README, 2026-08-30).
+CONFIG_LV_USE_CLIB_MALLOC=y
+# Two SW draw threads, Espressif's recommended setting for the dual-core P4.
+CONFIG_LV_OS_FREERTOS=y
+CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=2
 CONFIG_LV_FONT_MONTSERRAT_8=y
 CONFIG_LV_FONT_MONTSERRAT_10=y
 CONFIG_LV_FONT_MONTSERRAT_12=y
