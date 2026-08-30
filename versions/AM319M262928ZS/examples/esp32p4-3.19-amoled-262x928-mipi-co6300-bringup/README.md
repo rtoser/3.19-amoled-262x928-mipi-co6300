@@ -15,6 +15,9 @@
 - [工程结构](#工程结构)
 - [配置说明](#配置说明)
 - [渲染模式](#渲染模式)
+- [翻页时钟](#翻页时钟)
+- [亮度与夜间降亮](#亮度与夜间降亮)
+- [串口性能遥测（perf_probe）](#串口性能遥测perf_probe)
 - [触摸驱动的健壮性](#触摸驱动的健壮性)
 - [版本兼容性](#版本兼容性)
 - [迁移说明](#迁移说明)
@@ -24,13 +27,14 @@
 
 ## 功能说明
 
-本示例在 ESP32-P4 上完成以下流程，最终运行 LVGL 9 的 `lv_demo_widgets()`：
+本示例在 ESP32-P4 上运行一个**横屏机械翻页时钟**（HH:MM:SS 六张翻页卡，自
+piconetmon time-center 的 W4 组件移植，见[翻页时钟](#翻页时钟)）。启动流程：
 
 1. 通过 `VCI_EN` 给 AMOLED 上电（先拉低 60 ms 再拉高，等待 50 ms）；
 2. 初始化 I2C（400 kHz）并扫描总线，创建 CST3530 触摸驱动——放在 DSI 之前：能扫到 `0x58` 就说明排线、3V3 与触摸复位都正常；
 3. 打开 MIPI DSI PHY 的 LDO（通道 3，2.5 V），创建 1 data lane / 360 Mbps 的 DSI 总线；
-4. 硬件复位面板、读取 ID（`RDDID 04h`，本模组为 `33 12 00`），通过 DBI IO 发送 CO6300 初始化序列（`main.c` 中的 `lcd_init_cmds[]`，对应 [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](../../docs/AM319M262928ZS_CO6300_init_BOE3.19.txt)），创建 RGB565 DPI 面板并启用 DMA2D；
-5. 通过 `esp_lvgl_port` 注册显示与触摸（VSYNC 同步的 direct mode，见[渲染模式](#渲染模式)），启动 LVGL 演示。
+4. 硬件复位面板、读取 ID（`RDDID 04h`，本模组为 `33 12 00`），通过 DBI IO 发送 CO6300 初始化序列（`main.c` 中的 `lcd_init_cmds[]`，对应 [`docs/AM319M262928ZS_CO6300_init_BOE3.19.txt`](../../docs/AM319M262928ZS_CO6300_init_BOE3.19.txt)，亮度默认 60% 且开启 DIM 渐变，见[亮度与夜间降亮](#亮度与夜间降亮)），创建 RGB565 DPI 面板并启用 DMA2D；
+5. 通过 **esp_lvgl_adapter**（官方推荐自 esp_lvgl_port 迁移，esp-iot-solution#628）注册显示与触摸：`TRIPLE_PARTIAL` 三缓冲局部渲染防撕裂 + **PPA 90° 硬件旋转**成逻辑横屏 928×262，触摸坐标经 `esp_lcd_touch` 的 mirror/swap 标志随旋转推导（选型实测见[渲染模式](#渲染模式)与 `docs/perf/`），启动翻页时钟与[串口性能遥测](#串口性能遥测perf_probe)。
 
 ## 硬件连接
 
@@ -181,7 +185,12 @@ esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/
 
 ## 渲染模式
 
-示例使用 esp_lvgl_port 的 **VSYNC 同步 direct mode**：DPI 面板分配 2 幅 PSRAM 帧缓冲（`num_fbs = 2`，各 262 × 928 × 2 B = 486 KB），LVGL 直接在其中绘制（`buffer_size` 为整屏、`flags.direct_mode = 1`），`avoid_tearing = 1` 让 flush 等到 DSI 发完当前帧（`on_frame_buf_complete`）再切换帧缓冲。效果是画面永远是完整帧、刷新率锁定在面板的 60 Hz；代价是 LVGL 任务在等 VSYNC 时阻塞（叠加层里的 CPU% 会把这段等待算成忙碌，真实开销看渲染时间），以及一帧渲染超过 16.7 ms 时掉到 30 FPS（VSYNC 减半）。
+> **当前形态（2026-08-30 起）**：示例已全盘切换到 **esp_lvgl_adapter 0.6.4** 的
+> `TRIPLE_PARTIAL` 模式 + PPA 90° 旋转横屏（benchmark 全场景平均 55 FPS、0 看门狗，
+> 双轮漂移 ≤1 FPS，见 `docs/perf/tech-note-01`）。以下小节是竖屏 esp_lvgl_port
+> 时期的**选型过程记录**，数据仍然有效，作为回退路径与对照基线保留。
+
+示例曾使用 esp_lvgl_port 的 **VSYNC 同步 direct mode**：DPI 面板分配 2 幅 PSRAM 帧缓冲（`num_fbs = 2`，各 262 × 928 × 2 B = 486 KB），LVGL 直接在其中绘制（`buffer_size` 为整屏、`flags.direct_mode = 1`），`avoid_tearing = 1` 让 flush 等到 DSI 发完当前帧（`on_frame_buf_complete`）再切换帧缓冲。效果是画面永远是完整帧、刷新率锁定在面板的 60 Hz；代价是 LVGL 任务在等 VSYNC 时阻塞（叠加层里的 CPU% 会把这段等待算成忙碌，真实开销看渲染时间），以及一帧渲染超过 16.7 ms 时掉到 30 FPS（VSYNC 减半）。
 
 2026-08-29 在 V1.3 底板上用 `lv_demo_benchmark`（`CONFIG_LV_USE_DEMO_BENCHMARK`，在 `app_main()` 里替换 `lv_demo_widgets()` 即可运行）对比两种模式（均为 60 Hz 时序、16 ms 刷新周期、1 ms tick）：
 
@@ -202,6 +211,37 @@ esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/
 它曾在 benchmark 收尾必现活锁，2026-08-30 定位到根因并解决，**现在双线程就是示例默认**（`CONFIG_LV_USE_CLIB_MALLOC=y`，见下）。根因是 LVGL 内置内存池太小（`CONFIG_LV_MEM_SIZE_KILOBYTES=64`）：这块 262×928 屏加 benchmark 负载，池子要同时装下控件树、每帧上百个绘制任务结构体（`lv_draw_task_t`，每个 100–300 B）和 24 KB 的子图层缓冲（`LV_DRAW_LAYER_SIMPLE_BUF_SIZE`），双线程再让在飞任务和并存图层的峰值翻倍，开机约 41 s 池子必然耗尽。耗尽后的表现取决于哪个分配先失败，三种都实测复现过：①子图层缓冲失败 → 任务永远停在 `WAITING`、绘制调度在 `lv_thread_sync_wait` / 互斥量 give-take 里死循环（wdt 转储符号化定位到 `lv_freertos.c`），上游已在 [lvgl/lvgl#10369](https://github.com/lvgl/lvgl/pull/10369)（2026-08-03 合入 master，进 9.6）修复为标记 `FAILED` 并丢弃；②把该补丁 cherry-pick 到 9.5 后活锁消失，但变成持续丢任务花屏；③随后 `lv_draw_add_task()` 分配任务结构体也失败，撞上 `LV_ASSERT_MALLOC` 的默认处理器 `while(1);` 静默冻屏。也就是说 #10369 只是防御性加固，**治本是给 LVGL 足够内存**：`CONFIG_LV_USE_CLIB_MALLOC=y` 让 `lv_malloc` 走 IDF 堆——算法同为 TLSF（IDF `multi_heap` 就是 tlsf.h），抗碎片能力同级，容量从 64 KB 变成全部内部 SRAM（>16 KB 的块可溢出到 PSRAM，阈值 `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`），代价只是失去独立池的隔离性；这也是 esp_lvgl_adapter README 的官方推荐配置。该配置下 benchmark 全程跑完、汇总正常打印、0 次看门狗，全场景平均 52 FPS（双线程 + 开着 LVGL 日志测得）。
 
 同日在 Espressif 的 [esp_lvgl_adapter](https://components.espressif.com/components/espressif/esp_lvgl_adapter) 0.6.4 上复验（`TRIPLE_PARTIAL` 三缓冲局部渲染防撕裂、UI 任务钉 core 1、同样 2 绘制单元）：配 64 KB 内置池同样在 46 s 活锁——印证根因在 LVGL 内存而不在 esp_lvgl_port；配 CLIB malloc 后全场景平均 **56 FPS**、0 次看门狗，其中 Rotated ARGB / Containers with overlay 从 30 FPS 回到 56–60 FPS（局部渲染不吃直写模式整屏重绘的 VSYNC 减半），但 Screen sized text 从 47 掉到 29 FPS（整屏文字按 128 行分块渲染 + 搬运更贵）。重绘大块动画为主的 UI 可考虑迁移 adapter，本示例暂留 esp_lvgl_port。想回到局部刷新模式：`num_fbs = 1`、`buffer_size` 改为 `MIPI_DSI_LCD_H_RES * 120`、去掉 `direct_mode`、`avoid_tearing = false`。
+
+## 翻页时钟
+
+`components/flip_digit` 是自 piconetmon time-center 项目的 W4 组件（`w4_flip_digit*`）
+移植更名而来的**透视校正机械翻页数字**：每张卡的翻折用 CPU 逐帧光栅化到 RGB565A8
+画布（10 个数字的字形蒙版图集与共享 scratch 都放 PSRAM），带接触回弹物理。
+`main/flip_clock.c` 用它组成 HH:MM:SS 六卡 + 双冒号（秒闪）的时钟：
+
+- **几何**：卡面 120×156 配 150px 数字字体（自 time-center 的 152×200/192px 冻结
+  几何等比缩小，一行 904px 居中于 928px 逻辑横屏）。字体由 `lv_font_conv` 从
+  Montserrat-Bold 生成，只含 0–9（`components/flip_digit/fonts/`，含 192px 原版）。
+- **级联翻页（性能关键）**：单卡逐帧光栅化 p95 约 8.7 ms，两卡同时翻实测 48 FPS、
+  三卡 30 FPS——所以进位时**不同时翻**：翻片时长从 520 ms 收紧到 260 ms（物理
+  时间轴等比 1/2 缩放），起翻间隔 280 ms，从秒个位向高位波浪式推进，并发恒为 1。
+  实测 75 s（含整分三卡进位）稳态 render p95 峰值 10.3 ms、单帧最大 11.1 ms，
+  60 FPS 全程无破线，这也和真实机械翻页钟的联动方式一致。
+- **时间源**：时区固定 UTC+8；系统时间早于 2025 年视为未校准，从固定默认值起走
+  （将来 C5 hosted 的 NTP `settimeofday` 会自然覆盖）。
+
+## 亮度与夜间降亮
+
+- AMOLED 无背光，亮度即 CO6300 的 DCS `51h`（WRDISBV）。上电默认 **153（约 60%
+  ≈ 300 nit）**，menuconfig `EXAMPLE_PANEL_BRIGHTNESS` 可调——规格书的寿命基准是
+  350 nit T95 ≥ 300 h，厂商 demo 的 0xFF 满亮度只适合展台；`53h` 写 0x28 开启
+  BC_EN + **DIM_EN**（亮度渐变，芯片复位默认即 28h，厂商脚本反而关了渐变）。
+- `63h/66h` 是 HBM（高亮模式）亮度与使能——本模组规格书 **HBM 亮度一栏未标定**，
+  属超规格驱动，示例不启用（`63h` 预设值保留厂商序列原样，`66h` 不写）。
+- **夜间降亮策略**（`main.c` 的 `brightness_policy_cb`，1 s 周期）：白天常亮；
+  22:00–07:00 且无触摸超过 30 s 时平滑降到 `0x30`，任何触摸立即恢复（活动判定用
+  LVGL 自带的 `lv_display_get_inactive_time()`）。面板 Idle Mode（`39h`，50 nit +
+  15 Hz，全白功耗 368→38 mW）在 DPI video 模式下的行为待实验，暂未启用。
 
 ## 串口性能遥测（perf_probe）
 

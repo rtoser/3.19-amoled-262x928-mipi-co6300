@@ -23,14 +23,25 @@
 #include "esp_lcd_touch_cst3530.h"
 #include "esp_ldo_regulator.h"
 #include "esp_log.h"
-#include "esp_lvgl_port.h"
+#include "esp_lv_adapter.h"
+#include "esp_lv_adapter_display.h"
+#include "esp_lv_adapter_input.h"
 #include "esp_random.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "lv_demos.h"
+#include <time.h>
+
+#include "flip_clock.h"
 #include "perf_probe.h"
 
 static const char *TAG = "Main";
+
+/* 显示栈：esp_lvgl_adapter TRIPLE_PARTIAL（三缓冲局部渲染防撕裂）+ PPA 90° 旋转，
+ * 逻辑横屏 928×262（面板物理扫描仍是竖向 262×928）。选型与实测见 docs/perf 与
+ * README「渲染模式」章：横屏 benchmark 55 FPS、0 看门狗，触摸四方向已验证。 */
+#define EXAMPLE_ADAPTER_TEAR_MODE ESP_LV_ADAPTER_TEAR_AVOID_MODE_DEFAULT_MIPI_DSI /* TRIPLE_PARTIAL */
+#define EXAMPLE_ADAPTER_ROTATION  ESP_LV_ADAPTER_ROTATE_90
+#define EXAMPLE_ROTATION_DEG      90
 
 /* DPI 时钟源为 PLL_F240M，整数分频：240/12 = 20 MHz。刷新率 = 20e6 / (330 × 1010) = 60.01 Hz，
  * 落在规格书 F_frm 58.2–61.8 Hz 窗口内（16 MHz 时只有 51.1 Hz，低于规格下限）。 */
@@ -79,8 +90,11 @@ static const co6300_lcd_init_cmd_t lcd_init_cmds[] = {
     {0x3A, (uint8_t[]){0x77}, 1, 0},
     {0x2A, (uint8_t[]){0x00, 0x00, 0x01, 0x05}, 4, 0},
     {0x2B, (uint8_t[]){0x00, 0x00, 0x03, 0x9F}, 4, 0},
-    {0x53, (uint8_t[]){0x20}, 1, 0},
-    {0x51, (uint8_t[]){0xFF}, 1, 0},
+    // CTRL Display：BC_EN(D5)=1 亮度控制使能 + DIM_EN(D3)=1 亮度渐变（写 51h 平滑过渡；
+    // 芯片复位默认即 28h，厂商脚本的 20h 反而关了渐变）
+    {0x53, (uint8_t[]){0x28}, 1, 0},
+    // 亮度（WRDISBV）：默认 60%，menuconfig 可调；厂商 demo 的 0xFF 只适合展台
+    {0x51, (uint8_t[]){CONFIG_EXAMPLE_PANEL_BRIGHTNESS}, 1, 0},
     {0x63, (uint8_t[]){0xFF}, 1, 0},
     {0x11, NULL, 0, 60},
     {0x29, NULL, 0, 0},
@@ -151,7 +165,8 @@ esp_err_t app_lcd_init() {
         .dpi_clock_freq_mhz = MIPI_DSI_DPI_CLK_MHZ,
         .virtual_channel = 0,
         .in_color_format = LCD_COLOR_FMT_RGB565,
-        .num_fbs = 2,
+        .num_fbs = esp_lv_adapter_get_required_frame_buffer_count(
+            EXAMPLE_ADAPTER_TEAR_MODE, EXAMPLE_ADAPTER_ROTATION),
         .video_timing =
             {
                 .h_size = MIPI_DSI_LCD_H_RES,
@@ -247,9 +262,12 @@ esp_err_t app_touch_init() {
             },
         .flags =
             {
-                .swap_xy = 0,
-                .mirror_x = 0,
-                .mirror_y = 0,
+                /* esp_lcd_touch 软件路径先在物理坐标系 mirror、后 swap，因此
+                 * 旋转的逆映射为：90°=mirror_x+swap，180°=双 mirror，
+                 * 270°=mirror_y+swap（实测于横屏 widgets，四方向+四角通过）。 */
+                .swap_xy = (EXAMPLE_ROTATION_DEG == 90 || EXAMPLE_ROTATION_DEG == 270),
+                .mirror_x = (EXAMPLE_ROTATION_DEG == 90 || EXAMPLE_ROTATION_DEG == 180),
+                .mirror_y = (EXAMPLE_ROTATION_DEG == 270 || EXAMPLE_ROTATION_DEG == 180),
             },
     };
     ESP_LOGI(TAG, "Initialize touch controller");
@@ -259,54 +277,57 @@ esp_err_t app_touch_init() {
 }
 
 esp_err_t app_lvgl_init() {
-    const lvgl_port_cfg_t lvgl_cfg = {
-        .task_priority = 4,      /* LVGL task priority */
-        .task_stack = 4096 * 2,  /* LVGL task stack size */
-        .task_affinity = -1,     /* LVGL task pinned to core (-1 is no affinity) */
-        .task_max_sleep_ms = 500,
-        .timer_period_ms = 1     /* LVGL 时基 1 ms；5 ms 会把 16 ms 的刷新周期量化成 20 ms（50 FPS） */
-    };
-    ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_cfg), TAG, "LVGL port initialization failed");
+    esp_lv_adapter_config_t cfg = ESP_LV_ADAPTER_DEFAULT_CONFIG();
+    cfg.tick_period_ms = 1;  /* 1 ms 时基；5 ms 会把 16 ms 的刷新周期量化成 20 ms（50 FPS） */
+    cfg.task_core_id = 1;    /* UI 钉 core 1，core 0 留给日后的 hosted 网络栈 */
+    ESP_RETURN_ON_ERROR(esp_lv_adapter_init(&cfg), TAG, "adapter init failed");
 
     ESP_LOGD(TAG, "Add LCD screen");
-    const lvgl_port_display_cfg_t disp_cfg = {
-        .io_handle = mipi_dbi_io,
-        .panel_handle = mipi_dpi_panel,
-        .buffer_size = MIPI_DSI_LCD_H_RES * MIPI_DSI_LCD_V_RES,
-        .double_buffer = true,
-        .hres = MIPI_DSI_LCD_H_RES,
-        .vres = MIPI_DSI_LCD_V_RES,
-        .monochrome = false,
-        .color_format = LV_COLOR_FORMAT_RGB565,
-        .rotation =
-            {
-                .swap_xy = false,
-                .mirror_x = false,
-                .mirror_y = false,
-            },
-        .flags =
-            {
-                .buff_dma = true,
-                .buff_spiram = false,
-                .swap_bytes = false,
-                .direct_mode = true,
-            }
-    };
-    const lvgl_port_display_dsi_cfg_t dsi_cfg = {
-        .flags =
-            {
-                .avoid_tearing = true,
-            },
-    };
-    lvgl_disp = lvgl_port_add_disp_dsi(&disp_cfg, &dsi_cfg);
+    esp_lv_adapter_display_config_t disp_cfg = ESP_LV_ADAPTER_DISPLAY_MIPI_DEFAULT_CONFIG(
+        mipi_dpi_panel, mipi_dbi_io, MIPI_DSI_LCD_H_RES, MIPI_DSI_LCD_V_RES,
+        EXAMPLE_ADAPTER_ROTATION);
+    disp_cfg.tear_avoid_mode = EXAMPLE_ADAPTER_TEAR_MODE;
+    disp_cfg.profile.buffer_height = 128;  /* 局部渲染条带 262×128×2 B = 67 KB，cache 行整数倍 */
+    lvgl_disp = esp_lv_adapter_register_display(&disp_cfg);
+    ESP_RETURN_ON_FALSE(lvgl_disp, ESP_FAIL, TAG, "register display failed");
 
-    const lvgl_port_touch_cfg_t touch_cfg = {
-        .disp = lvgl_disp,
-        .handle = tp,
-    };
-    lvgl_port_add_touch(&touch_cfg);
+    esp_lv_adapter_touch_config_t touch_cfg = ESP_LV_ADAPTER_TOUCH_DEFAULT_CONFIG(lvgl_disp, tp);
+    ESP_RETURN_ON_FALSE(esp_lv_adapter_register_touch(&touch_cfg), ESP_FAIL, TAG,
+                        "register touch failed");
 
-    return ESP_OK;
+    return esp_lv_adapter_start();
+}
+
+/* ---- 夜间自动降亮（用户 2026-08-30 批准的 IDLE 策略第一阶段） ----
+ * 判定输入只有两个：墙钟时段 + 触摸活动（板上无光感）。白天保持常亮——
+ * 时钟变暗是反功能；夜间(22:00–07:00)无触摸 30 s 平滑降到 NIGHT 亮度，
+ * 触摸即恢复。执行动作只有重写 51h（53h 已开 DIM_EN，过渡平滑）；
+ * 面板 Idle Mode(39h,15Hz) 在 DPI video 模式下的行为待实验，见 README。 */
+#define BRIGHTNESS_ACTIVE     CONFIG_EXAMPLE_PANEL_BRIGHTNESS
+#define BRIGHTNESS_NIGHT      0x30
+#define NIGHT_BEGIN_HOUR      22
+#define NIGHT_END_HOUR        7
+#define NIGHT_DIM_INACTIVE_MS 30000
+
+static void panel_set_brightness(uint8_t level) {
+    static uint8_t current = BRIGHTNESS_ACTIVE;
+    if (level == current) {
+        return;
+    }
+    current = level;
+    if (esp_lcd_panel_io_tx_param(mipi_dbi_io, 0x51, &level, 1) != ESP_OK) {
+        ESP_LOGW(TAG, "brightness write failed");
+    }
+}
+
+static void brightness_policy_cb(lv_timer_t *timer) {
+    (void)timer;
+    time_t now_ts = time(NULL);
+    struct tm now;
+    localtime_r(&now_ts, &now);
+    const bool night = now.tm_hour >= NIGHT_BEGIN_HOUR || now.tm_hour < NIGHT_END_HOUR;
+    const bool idle = lv_display_get_inactive_time(NULL) > NIGHT_DIM_INACTIVE_MS;
+    panel_set_brightness(night && idle ? BRIGHTNESS_NIGHT : BRIGHTNESS_ACTIVE);
 }
 
 void app_main(void) {
@@ -318,13 +339,12 @@ void app_main(void) {
     ESP_ERROR_CHECK(app_lcd_init());
     ESP_ERROR_CHECK(app_lvgl_init());
 
-    lvgl_port_lock(-1);
-    lv_demo_widgets();
-    // lv_demo_music();
-    lvgl_port_unlock();
+    ESP_ERROR_CHECK(esp_lv_adapter_lock(-1));
+    ESP_ERROR_CHECK(flip_clock_start(lvgl_disp));
+    lv_timer_create(brightness_policy_cb, 1000, NULL);
+    esp_lv_adapter_unlock();
 
-    // 串口性能遥测（menuconfig 的 "Performance probe" 可关）。widgets 静置时
-    // redraw_fps 接近 0 是正常的——sysmon 叠加层显示的 60 FPS 只是刷新调度数。
-    perf_probe_set_label("widgets");
+    // 串口性能遥测（menuconfig 的 "Performance probe" 可关）。翻页钟静置时只有
+    // 冒号每秒闪一下，redraw/motion FPS 约 1 是正常的；整分翻页时上升。
     ESP_ERROR_CHECK(perf_probe_start(lvgl_disp));
 }

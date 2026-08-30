@@ -1,7 +1,7 @@
 dependencies:
-  # esp_lvgl_port 2.9.0 uses the DPI `on_frame_buf_complete` callback on IDF >= 5.5, which only
-  # exists in IDF v5.5.5+, v6.0.3+ and v6.1+. On older releases pin `~2.8.0` instead.
-  espressif/esp_lvgl_port: ^2.9.0
+  # LVGL 胶水层用 esp_lvgl_adapter（官方推荐自 esp_lvgl_port 迁移，esp-iot-solution#628）：
+  # TRIPLE_PARTIAL 三缓冲局部渲染防撕裂 + PPA 90° 硬件旋转，横屏 928×262。
+  espressif/esp_lvgl_adapter: ^0.6.4
   idf:
     version: '>=5.5.5,!=6.0.0,!=6.0.1,!=6.0.2'
   lvgl/lvgl:

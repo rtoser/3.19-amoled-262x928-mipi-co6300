@@ -1,5 +1,14 @@
 menu "Example Configuration (AM319M262928ZS bring-up)"
 
+    config EXAMPLE_PANEL_BRIGHTNESS
+        int "Panel brightness at boot (DCS 51h, 0-255)"
+        range 0 255
+        default 153
+        help
+            AMOLED 亮度寄存器 WRDISBV 的上电值。满亮度（255）只适合展台：
+            静态画面 + 高亮度会加速 AMOLED 烧屏，功耗也随亮度近似线性增长。
+            默认 153（约 60%）。运行时可通过 DBI IO 重写 51h 调节。
+
     config EXAMPLE_PIN_NUM_LCD_RST
         int "LCD RST GPIO (-1 = not wired, use DCS software reset)"
         range -1 54
