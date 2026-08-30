@@ -203,6 +203,32 @@ They used to livelock reproducibly at the benchmark's teardown; on 2026-08-30 th
 
 The same day this was cross-checked on Espressif's [esp_lvgl_adapter](https://components.espressif.com/components/espressif/esp_lvgl_adapter) 0.6.4 (`TRIPLE_PARTIAL` triple-buffered partial-render tear-avoid mode, UI task pinned to core 1, the same 2 draw units): with the 64 KB builtin pool it livelocks at 46 s just the same — confirming the root cause lives in LVGL's memory, not in esp_lvgl_port; with CLIB malloc it averages **56 FPS** with zero watchdogs, where Rotated ARGB / Containers-with-overlay recover from 30 FPS to 56–60 FPS (partial rendering doesn't pay direct mode's full-screen VSYNC halving) but Screen-sized text drops from 47 to 29 FPS (rendering full-screen text in 128-line chunks plus the copy-out costs more). A UI dominated by large animated redraws may prefer the adapter; this example stays on esp_lvgl_port for now. To go back to partial mode: `num_fbs = 1`, `buffer_size = MIPI_DSI_LCD_H_RES * 120`, drop `direct_mode`, `avoid_tearing = false`.
 
+## Serial performance telemetry (perf_probe)
+
+The example attaches `components/perf_probe` by default (menuconfig →
+*Performance probe* to disable; a trimmed port of the piconetmon time-center
+probe). Every second it prints three serial lines:
+
+```text
+[FRAME] mode=widgets win=1033ms redraw_fps=2.9 motion_fps=0.0 refresh=61 redraw=3 ... render_us=8300/7891/7891/13929 ...
+[CPU]   mode=widgets idle=95% core=93/97% idle_valid=valid internal=342551/295852/147456B psram=... lvgl_stack=2536B
+[ERR]   frame_timeout=0 attribution=0 abandoned=0 sample_overflow=0
+```
+
+How to read it: the on-screen sysmon FPS is a **refresh-scheduling count**
+(`refresh=61` above) and shows 60 even on a static screen; `redraw_fps` counts
+frames that actually rendered content, and animation smoothness should be
+judged by `motion_fps` (the application marks real content changes with
+`perf_probe_note_motion_step()`; it stays 0 for the unmarked demo). The
+quadruples are `avg/p50/p95/max` in microseconds; `draw_us` ≈ pure rendering,
+`flush_us` includes direct mode's dirty-region sync between the two frame
+buffers, `wait_us` is the VSYNC wait. `[CPU]` idle comes from cross-core
+synchronized FreeRTOS run-time stats (`idle_valid=reset` marks the first
+window after a scene switch), and the `internal/psram` triples are
+`free/min/largest` — once C5-hosted Wi-Fi joins the shared heap, watching
+`min` and `largest` is how heap contention shows up. Call
+`perf_probe_set_label("scene")` at scene changes to segment the telemetry.
+
 ## Touch driver robustness
 
 On 2026-08-29, dragging the UI quickly on the V1.3 base board reproduced two failures with one root cause: the touch I2C bus occasionally NACKs under a high read rate.

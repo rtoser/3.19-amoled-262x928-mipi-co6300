@@ -1,0 +1,18 @@
+menu "Performance probe (perf_probe)"
+
+config PERF_PROBE_ENABLE
+    bool "Attach the LVGL performance probe and print serial telemetry"
+    default y
+    help
+        Aggregates the LVGL display events into per-window [FRAME]/[CPU]/[ERR]
+        serial lines: honest redraw/motion FPS, refresh/render/draw/flush
+        timing percentiles, true cross-core CPU idle, heap and stack
+        watermarks. Ported (trimmed) from the time-center perf probe.
+
+config PERF_PROBE_WINDOW_MS
+    int "Reporting window (ms)"
+    depends on PERF_PROBE_ENABLE
+    range 250 60000
+    default 1000
+
+endmenu

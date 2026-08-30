@@ -28,6 +28,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lv_demos.h"
+#include "perf_probe.h"
 
 static const char *TAG = "Main";
 
@@ -321,4 +322,9 @@ void app_main(void) {
     lv_demo_widgets();
     // lv_demo_music();
     lvgl_port_unlock();
+
+    // 串口性能遥测（menuconfig 的 "Performance probe" 可关）。widgets 静置时
+    // redraw_fps 接近 0 是正常的——sysmon 叠加层显示的 60 FPS 只是刷新调度数。
+    perf_probe_set_label("widgets");
+    ESP_ERROR_CHECK(perf_probe_start(lvgl_disp));
 }

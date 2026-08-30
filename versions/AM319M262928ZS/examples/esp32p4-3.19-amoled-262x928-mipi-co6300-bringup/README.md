@@ -203,6 +203,27 @@ esp32p4-3.19-amoled-262x928-mipi-co6300-bringup/
 
 同日在 Espressif 的 [esp_lvgl_adapter](https://components.espressif.com/components/espressif/esp_lvgl_adapter) 0.6.4 上复验（`TRIPLE_PARTIAL` 三缓冲局部渲染防撕裂、UI 任务钉 core 1、同样 2 绘制单元）：配 64 KB 内置池同样在 46 s 活锁——印证根因在 LVGL 内存而不在 esp_lvgl_port；配 CLIB malloc 后全场景平均 **56 FPS**、0 次看门狗，其中 Rotated ARGB / Containers with overlay 从 30 FPS 回到 56–60 FPS（局部渲染不吃直写模式整屏重绘的 VSYNC 减半），但 Screen sized text 从 47 掉到 29 FPS（整屏文字按 128 行分块渲染 + 搬运更贵）。重绘大块动画为主的 UI 可考虑迁移 adapter，本示例暂留 esp_lvgl_port。想回到局部刷新模式：`num_fbs = 1`、`buffer_size` 改为 `MIPI_DSI_LCD_H_RES * 120`、去掉 `direct_mode`、`avoid_tearing = false`。
 
+## 串口性能遥测（perf_probe）
+
+示例默认挂载 `components/perf_probe`（menuconfig → *Performance probe* 可关，从
+piconetmon time-center 的探针裁剪移植），每秒在串口输出三行：
+
+```text
+[FRAME] mode=widgets win=1033ms redraw_fps=2.9 motion_fps=0.0 refresh=61 redraw=3 ... render_us=8300/7891/7891/13929 ...
+[CPU]   mode=widgets idle=95% core=93/97% idle_valid=valid internal=342551/295852/147456B psram=... lvgl_stack=2536B
+[ERR]   frame_timeout=0 attribution=0 abandoned=0 sample_overflow=0
+```
+
+读数要点：屏幕右下角 sysmon 叠加层的 FPS 是**刷新调度数**（上例 `refresh=61`），
+静止画面也显示 60；`redraw_fps` 才是真的渲染了内容的帧率，衡量动画流畅度用
+`motion_fps`（应用在内容变化处调用 `perf_probe_note_motion_step()` 标记，demo
+未标记时恒为 0）。四元组均为 `avg/p50/p95/max` 微秒；`draw_us` ≈ 纯渲染，
+`flush_us` 含直写模式下的双缓冲脏区同步，`wait_us` 是等 VSYNC。`[CPU]` 的
+idle 来自 FreeRTOS run-time stats 的跨核同步采样（`idle_valid=reset` 表示刚切换
+场景、该窗口只重建基准），`internal/psram` 三元组是 `free/min/largest`——接入
+C5 hosted Wi-Fi 后盯 `min` 和 `largest` 即可发现堆竞争。切换场景时调用
+`perf_probe_set_label("scene")` 可在遥测中分段。
+
 ## 触摸驱动的健壮性
 
 2026-08-29 在 V1.3 底板上快速拖动界面时复现了两种故障，根因相同——触摸 I2C 总线在高频读取下偶发 NACK：
